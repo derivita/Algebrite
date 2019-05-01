@@ -27323,7 +27323,7 @@ if compare_numbers(startingDegree, remainingDegree)
     var maxFixedPrintoutDigits, stringRepresentation;
     // when generating code, print out
     // the standard JS Number printout
-    if (codeGen) {
+    if (true) {
       return "" + d;
     }
     if (isZeroAtomOrTensor(get_binding(symbol(FORCE_FIXED_PRINTOUT)))) {
