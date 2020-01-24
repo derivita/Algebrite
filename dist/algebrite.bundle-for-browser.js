@@ -30407,5 +30407,9 @@ if (typeof define === "function" && define.amd) {
 }
 
 },{}],3:[function(require,module,exports){
-window.Algebrite = require('../dist/algebrite')
+try {
+  window.Algebrite = require('../dist/algebrite')
+} catch(ex) {
+  self.Algebrite = require('../dist/algebrite')
+}
 },{"../dist/algebrite":1}]},{},[3]);
