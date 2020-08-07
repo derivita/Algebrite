@@ -76,22 +76,22 @@ test_mixedprint = ->
     "",
 
     "1.0*10^(-15)",
-    "1*10^(-15)",
+    "1.0*10^(-15)",
 
     "printhuman",
-    "1*10^(-15)",
+    "1.0*10^(-15)",
 
     "printcomputer",
-    "1*10^(-15)",
+    "1.0*10^(-15)",
 
     "printlatex",
-    "1\\mathrm{e}{-15}",
+    "1.0\\mathrm{e}{-15}",
 
     "printlist",
-    "1*10^(-15)",
+    "1.0*10^(-15)",
 
     "print2dascii",
-    "1*10^(-15)",
+    "1.0*10^(-15)",
 
     "forceFixedPrintout=1",
     "",
@@ -162,5 +162,25 @@ test_mixedprint = ->
 
     "print2dascii(x^(1/(a+b)))",
     " 1/(a + b)\nx",
+
+    # ------------------------------------------
+
+    "(5/3)!",
+    "(5/3)!",
+
+    "printhuman",
+    "(5/3)!",
+
+    "printcomputer",
+    "(5/3)!",
+
+    "printlatex",
+    "(\\frac{5}{3})!",
+
+    "printlist",
+    "(factorial 5/3)",
+
+    "print2dascii",
+    "  5\n(---)!\n  3",
 
   ]

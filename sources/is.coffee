@@ -6,8 +6,7 @@ DEBUG_IS = false
 # this routine is a simple check on whether we have
 # a basic zero in our hands. It doesn't perform any
 # calculations or simplifications.
-isZeroAtomOrTensor = (p) ->
-  i = 0
+isZeroAtom = (p) ->
   switch (p.k)
     when NUM
       if (MZERO(p.q.a))
@@ -15,12 +14,27 @@ isZeroAtomOrTensor = (p) ->
     when DOUBLE
       if (p.d == 0.0)
         return 1
-    when TENSOR
-      for i in [0...p.tensor.nelem]
-        if (!isZeroAtomOrTensor(p.tensor.elem[i]))
-          return 0
-      return 1
   return 0
+
+# p is a U
+# this routine is a simple check on whether we have
+# a basic zero in our hands. It doesn't perform any
+# calculations or simplifications.
+isZeroTensor = (p) ->
+  if p.k != TENSOR
+    return 0
+
+  for i in [0...p.tensor.nelem]
+    if (!isZeroAtomOrTensor(p.tensor.elem[i]))
+      return 0
+  return 1
+
+# p is a U
+# this routine is a simple check on whether we have
+# a basic zero in our hands. It doesn't perform any
+# calculations or simplifications.
+isZeroAtomOrTensor = (p) ->
+  isZeroAtom(p) or isZeroTensor(p)
 
 # This is a key routine to try to determine whether
 # the argument looks like zero/false, or non-zero/true,
@@ -198,36 +212,82 @@ isposint = (p) ->
   else
     return 0
 
-# both p,x are U
-ispoly = (p,x) ->
-  if (Find(p, x))
-    return ispoly_expr(p, x)
+# --------------------------------------
+
+isunivarpolyfactoredorexpandedform = (p,x) ->
+  if !x?
+    push p
+    guess()
+    x = pop()
+    pop()
+
+  if ispolyfactoredorexpandedform(p,x) and (Find(p, symbol(SYMBOL_X)) + Find(p, symbol(SYMBOL_Y)) + Find(p, symbol(SYMBOL_Z)) == 1) 
+    return x
   else
     return 0
 
-ispoly_expr = (p,x) ->
-  if (car(p) == symbol(ADD))
-    p = cdr(p)
-    while (iscons(p))
-      if (!ispoly_term(car(p), x))
-        return 0
-      p = cdr(p)
-    return 1
-  else
-    return ispoly_term(p, x)
+# --------------------------------------
+# sometimes we want to check if we have a poly in our
+# hands, however it's in factored form and we don't
+# want to expand it.
 
-ispoly_term = (p,x) ->
+ispolyfactoredorexpandedform = (p,x) ->
+  return ispolyfactoredorexpandedform_factor(p, x)
+
+ispolyfactoredorexpandedform_factor = (p,x) ->
   if (car(p) == symbol(MULTIPLY))
     p = cdr(p)
     while (iscons(p))
-      if (!ispoly_factor(car(p), x))
+      if DEBUG then console.log "ispolyfactoredorexpandedform_factor testing " + car(p)
+      if (!ispolyfactoredorexpandedform_power(car(p), x))
+        if DEBUG then console.log "... tested negative:" + car(p)
         return 0
       p = cdr(p)
     return 1
   else
-    return ispoly_factor(p, x)
+    return ispolyfactoredorexpandedform_power(p, x)
 
-ispoly_factor = (p,x) ->
+ispolyfactoredorexpandedform_power = (p,x) ->
+  if (car(p) == symbol(POWER))
+    if DEBUG then console.log "ispolyfactoredorexpandedform_power (isposint(caddr(p)) " + (isposint(caddr(p))
+    if DEBUG then console.log "ispolyfactoredorexpandedform_power ispolyexpandedform_expr(cadr(p), x)) " + ispolyexpandedform_expr(cadr(p), x))
+    return (isposint(caddr(p)) and ispolyexpandedform_expr(cadr(p), x))
+  else
+    if DEBUG then console.log "ispolyfactoredorexpandedform_power not a power, testing if this is exp form: " + p
+    return ispolyexpandedform_expr(p, x)
+
+# --------------------------------------
+
+ispolyexpandedform = (p,x) ->
+  if (Find(p, x))
+    return ispolyexpandedform_expr(p, x)
+  else
+    return 0
+
+
+ispolyexpandedform_expr = (p,x) ->
+  if (car(p) == symbol(ADD))
+    p = cdr(p)
+    while (iscons(p))
+      if (!ispolyexpandedform_term(car(p), x))
+        return 0
+      p = cdr(p)
+    return 1
+  else
+    return ispolyexpandedform_term(p, x)
+
+ispolyexpandedform_term = (p,x) ->
+  if (car(p) == symbol(MULTIPLY))
+    p = cdr(p)
+    while (iscons(p))
+      if (!ispolyexpandedform_factor(car(p), x))
+        return 0
+      p = cdr(p)
+    return 1
+  else
+    return ispolyexpandedform_factor(p, x)
+
+ispolyexpandedform_factor = (p,x) ->
   if (equal(p, x))
     return 1
   if (car(p) == symbol(POWER) && equal(cadr(p), x))
@@ -239,6 +299,8 @@ ispoly_factor = (p,x) ->
     return 0
   else
     return 1
+
+# --------------------------------------
 
 isnegativeterm = (p) ->
   if (isnegativenumber(p))

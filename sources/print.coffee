@@ -426,7 +426,7 @@ print_subexpr = (p) ->
 print_factorial_function = (p) ->
   accumulator = ""
   p = cadr(p)
-  if (car(p) == symbol(ADD) || car(p) == symbol(MULTIPLY) || car(p) == symbol(POWER) || car(p) == symbol(FACTORIAL))
+  if (isfraction(p) || car(p) == symbol(ADD) || car(p) == symbol(MULTIPLY) || car(p) == symbol(POWER) || car(p) == symbol(FACTORIAL))
     accumulator += print_subexpr(p)
   else
     accumulator += print_expr(p)
@@ -1353,7 +1353,6 @@ print_factor = (p, omitParens) ->
       accumulator += " \\lfloor {" + print_expr(cadr(p)) + "} \\rfloor "
       return accumulator
   else if car(p) == symbol(CEILING)
-    debugger
     if codeGen
       accumulator += "Math.ceiling("+print_expr(cadr(p))+")"
       return accumulator
