@@ -13,14 +13,11 @@ test_factorpoly = ->
     "factor(x*(x+1)*(x+2),x)",
     "x*(1+x)*(2+x)",
 
-  #  "factor((x+1)*(x+2)*(y+3)*(y+4),x,y)",
-  #  "(1+x)*(2+x)*(3+y)*(4+y)",
+    "factor((x+1)*(x+2)*(y+3)*(y+4))",
+    "(1+x)*(2+x)*(12+7*y+y^2)",
 
-  #  "factor((x+1)*(x+2)*(y+3)*(y+4),(x,y))",
-  #  "(1+x)*(2+x)*(3+y)*(4+y)",
-
-  #  "factor((x+1)*(x+2)*(y+3)*(y+4))",
-  #  "(1+x)*(2+x)*(3+y)*(4+y)",
+    "factor((x+1)*(x+2)*(y+3)*(y+4),x,y)",
+    "(1+x)*(2+x)*(3+y)*(4+y)",
 
     "factor((-2*x+3)*(x+4),x)",
     "-(-3+2*x)*(4+x)",
@@ -325,7 +322,7 @@ test_factorpoly = ->
 
     # this used to cause divide by zero
 
-    # fixed by calling ispoly before calling coeff
+    # fixed by calling ispolyexpandedform before calling coeff
 
   #  "factor(1/x+1)",
   #  "(1+x)/x",
