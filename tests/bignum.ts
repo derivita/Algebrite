@@ -1,20 +1,19 @@
-test_signs_in_rationals = ->
-  run_test [
+import { run_test } from '../test-harness';
 
-    # I found out about basic mistakes in
-    # these very very late, better to
-    # have those tests early on.
+run_test([
+  // I found out about basic mistakes in
+  // these very very late, better to
+  // have those tests early on.
 
-    "1/1",
-    "1",
+  '1/1',
+  '1',
 
-    "-1/1",
-    "-1",
+  '-1/1',
+  '-1',
 
-    "1/(-1)",
-    "-1",
+  '1/(-1)',
+  '-1',
 
-    "(-1)/(-1)",
-    "1",
-
-  ]
+  '(-1)/(-1)',
+  '1',
+]);

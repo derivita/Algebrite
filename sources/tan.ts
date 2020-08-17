@@ -1,104 +1,133 @@
-# Tangent function of numerical and symbolic arguments
+import {
+  ARCTAN,
+  cadr,
+  car,
+  defs,
+  isdouble,
+  PI,
+  symbol,
+  TAN,
+  U,
+} from '../runtime/defs';
+import { pop, push } from '../runtime/stack';
+import { push_symbol } from '../runtime/symbol';
+import {
+  pop_integer,
+  push_double,
+  push_integer,
+  push_rational,
+} from './bignum';
+import { Eval } from './eval';
+import { isnegative } from './is';
+import { list } from './list';
+import { divide, multiply, negate } from './multiply';
+import { power } from './power';
+// Tangent function of numerical and symbolic arguments
+export function Eval_tan(p1: U) {
+  push(cadr(p1));
+  Eval();
+  tangent();
+}
 
+function tangent() {
+  yytangent();
+}
 
+function yytangent() {
+  const p1 = pop();
 
-Eval_tan = ->
-  push(cadr(p1))
-  Eval()
-  tangent()
+  if (car(p1) === symbol(ARCTAN)) {
+    push(cadr(p1));
+    return;
+  }
 
-tangent = ->
-  save()
-  yytangent()
-  restore()
+  if (isdouble(p1)) {
+    let d = Math.tan(p1.d);
+    if (Math.abs(d) < 1e-10) {
+      d = 0.0;
+    }
+    push_double(d);
+    return;
+  }
 
-yytangent = ->
-  n = 0
-  d = 0.0
+  // tan function is antisymmetric, tan(-x) = -tan(x)
+  if (isnegative(p1)) {
+    push(p1);
+    negate();
+    tangent();
+    negate();
+    return;
+  }
 
-  p1 = pop()
+  // multiply by 180/pi to go from radians to degrees.
+  // we go from radians to degrees because it's much
+  // easier to calculate symbolic results of most (not all) "classic"
+  // angles (e.g. 30,45,60...) if we calculate the degrees
+  // and the we do a switch on that.
+  // Alternatively, we could look at the fraction of pi
+  // (e.g. 60 degrees is 1/3 pi) but that's more
+  // convoluted as we'd need to look at both numerator and
+  // denominator.
+  push(p1);
+  push_integer(180);
+  multiply();
+  if (defs.evaluatingAsFloats) {
+    push_double(Math.PI);
+  } else {
+    push_symbol(PI);
+  }
+  divide();
 
-  if (car(p1) == symbol(ARCTAN))
-    push(cadr(p1))
-    return
+  const n = pop_integer();
 
-  if (isdouble(p1))
-    d = Math.tan(p1.d)
-    if (Math.abs(d) < 1e-10)
-      d = 0.0
-    push_double(d)
-    return
+  // most "good" (i.e. compact) trigonometric results
+  // happen for a round number of degrees. There are some exceptions
+  // though, e.g. 22.5 degrees, which we don't capture here.
+  if (n < 0 || isNaN(n)) {
+    push(symbol(TAN));
+    push(p1);
+    list(2);
+    return;
+  }
 
-  # tan function is antisymmetric, tan(-x) = -tan(x)
-
-  if (isnegative(p1))
-    push(p1)
-    negate()
-    tangent()
-    negate()
-    return
-
-  # multiply by 180/pi to go from radians to degrees.
-  # we go from radians to degrees because it's much
-  # easier to calculate symbolic results of most (not all) "classic"
-  # angles (e.g. 30,45,60...) if we calculate the degrees
-  # and the we do a switch on that.
-  # Alternatively, we could look at the fraction of pi
-  # (e.g. 60 degrees is 1/3 pi) but that's more
-  # convoluted as we'd need to look at both numerator and
-  # denominator.
-
-  push(p1)
-  push_integer(180)
-  multiply()
-  if evaluatingAsFloats
-    push_double(Math.PI)
-  else
-    push_symbol(PI)
-  divide()
-
-  n = pop_integer()
-
-  # most "good" (i.e. compact) trigonometric results
-  # happen for a round number of degrees. There are some exceptions
-  # though, e.g. 22.5 degrees, which we don't capture here.
-  if (n < 0 || isNaN(n))
-    push(symbol(TAN))
-    push(p1)
-    list(2)
-    return
-
-  switch (n % 360)
-    when 0, 180
-      push_integer(0)
-    when 30, 210
-      push_rational(1, 3)
-      push_integer(3)
-      push_rational(1, 2)
-      power()
-      multiply()
-    when 150, 330
-      push_rational(-1, 3)
-      push_integer(3)
-      push_rational(1, 2)
-      power()
-      multiply()
-    when 45, 225
-      push_integer(1)
-    when 135, 315
-      push_integer(-1)
-    when 60, 240
-      push_integer(3)
-      push_rational(1, 2)
-      power()
-    when 120, 300
-      push_integer(3)
-      push_rational(1, 2)
-      power()
-      negate()
-    else
-      push(symbol(TAN))
-      push(p1)
-      list(2)
-
-
+  switch (n % 360) {
+    case 0:
+    case 180:
+      return push_integer(0);
+    case 30:
+    case 210:
+      push_rational(1, 3);
+      push_integer(3);
+      push_rational(1, 2);
+      power();
+      return multiply();
+    case 150:
+    case 330:
+      push_rational(-1, 3);
+      push_integer(3);
+      push_rational(1, 2);
+      power();
+      return multiply();
+    case 45:
+    case 225:
+      return push_integer(1);
+    case 135:
+    case 315:
+      return push_integer(-1);
+    case 60:
+    case 240:
+      push_integer(3);
+      push_rational(1, 2);
+      return power();
+    case 120:
+    case 300:
+      push_integer(3);
+      push_rational(1, 2);
+      power();
+      return negate();
+    default:
+      push(symbol(TAN));
+      push(p1);
+      return list(2);
+  }
+}

@@ -1,4 +1,14 @@
-### bessely =====================================================================
+import { BESSELY, caddr, cadr, isdouble, U } from '../runtime/defs';
+import { pop, push } from '../runtime/stack';
+import { push_symbol } from '../runtime/symbol';
+import { pop_integer, push_double, push_integer } from './bignum';
+import { Eval } from './eval';
+import { isnegativeterm } from './is';
+import { list } from './list';
+import { multiply, negate } from './multiply';
+import { power } from './power';
+import { yn } from '../runtime/otherCFunctions';
+/* bessely =====================================================================
 
 Tags
 ----
@@ -13,54 +23,47 @@ General description
 
 Bessel function of second kind.
 
-###
+*/
+export function Eval_bessely(p1: U) {
+  push(cadr(p1));
+  Eval();
+  push(caddr(p1));
+  Eval();
+  bessely();
+}
 
+export function bessely() {
+  yybessely();
+}
 
-Eval_bessely = ->
-  push(cadr(p1))
-  Eval()
-  push(caddr(p1))
-  Eval()
-  bessely()
+function yybessely() {
+  const N = pop();
+  const X = pop();
 
-bessely = ->
-  save()
-  yybessely()
-  restore()
+  push(N);
+  const n = pop_integer();
 
-#define X p1
-#define N p2
+  if (isdouble(X) && !isNaN(n)) {
+    const d = yn(n, X.d);
+    push_double(d);
+    return;
+  }
 
-yybessely = ->
-  d = 0.0
-  n = 0
+  if (isnegativeterm(N)) {
+    push_integer(-1);
+    push(N);
+    power();
+    push_symbol(BESSELY);
+    push(X);
+    push(N);
+    negate();
+    list(3);
+    multiply();
+    return;
+  }
 
-  p2 = pop()
-  p1 = pop()
-
-  push(p2)
-  n = pop_integer()
-
-  if (isdouble(p1) && !isNaN(n))
-    d = yn(n, p1.d)
-    push_double(d)
-    return
-  
-  if (isnegativeterm(p2))
-    push_integer(-1)
-    push(p2)
-    power()
-    push_symbol(BESSELY)
-    push(p1)
-    push(p2)
-    negate()
-    list(3)
-    multiply()
-    return
-
-  push_symbol(BESSELY)
-  push(p1)
-  push(p2)
-  list(3)
-  return
-
+  push_symbol(BESSELY);
+  push(X);
+  push(N);
+  list(3);
+}

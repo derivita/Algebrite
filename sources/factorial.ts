@@ -1,170 +1,192 @@
+import {
+  ADD,
+  caddr,
+  cadr,
+  car,
+  cdr,
+  defs,
+  FACTORIAL,
+  iscons,
+  isfactorial,
+  ispower,
+  MULTIPLY,
+  NIL,
+  symbol,
+  U,
+} from '../runtime/defs';
+import { moveTos, pop, push } from '../runtime/stack';
+import { push_symbol } from '../runtime/symbol';
+import { yyexpand } from '../sources/misc';
+import { add, subtract } from './add';
+import { bignum_factorial, pop_integer, push_integer } from './bignum';
+import { list } from './list';
+import { multiply } from './multiply';
+import { power } from './power';
+export function factorial() {
+  const p1 = pop();
+  push(p1);
+  const n = pop_integer();
+  if (n < 0 || isNaN(n)) {
+    push_symbol(FACTORIAL);
+    push(p1);
+    list(2);
+    return;
+  }
+  bignum_factorial(n);
+}
 
+// simplification rules for factorials (m < n)
+//
+//  (e + 1) * factorial(e)  ->  factorial(e + 1)
+//
+//  factorial(e) / e  ->  factorial(e - 1)
+//
+//  e / factorial(e)  ->  1 / factorial(e - 1)
+//
+//  factorial(e + n)
+//  ----------------  ->  (e + m + 1)(e + m + 2)...(e + n)
+//  factorial(e + m)
+//
+//  factorial(e + m)                               1
+//  ----------------  ->  --------------------------------
+//  factorial(e + n)    (e + m + 1)(e + m + 2)...(e + n)
 
+// this function is not actually used, but
+// all these simplifications
+// do happen automatically via simplify
+function simplifyfactorials() {
+  const x = defs.expanding;
+  defs.expanding = 0;
 
-factorial = ->
-  n = 0
-  save()
-  p1 = pop()
-  push(p1)
-  n = pop_integer()
-  if (n < 0 || isNaN(n))
-    push_symbol(FACTORIAL)
-    push(p1)
-    list(2)
-    restore()
-    return
-  bignum_factorial(n)
-  restore()
+  let p1 = pop();
 
+  if (car(p1) === symbol(ADD)) {
+    push(defs.zero);
+    p1 = cdr(p1);
+    while (iscons(p1)) {
+      push(car(p1));
+      simplifyfactorials();
+      add();
+      p1 = cdr(p1);
+    }
+    defs.expanding = x;
+    return;
+  }
 
-# simplification rules for factorials (m < n)
-#
-#  (e + 1) * factorial(e)  ->  factorial(e + 1)
-#
-#  factorial(e) / e  ->  factorial(e - 1)
-#
-#  e / factorial(e)  ->  1 / factorial(e - 1)
-#
-#  factorial(e + n)
-#  ----------------  ->  (e + m + 1)(e + m + 2)...(e + n)
-#  factorial(e + m)
-#
-#  factorial(e + m)                               1
-#  ----------------  ->  --------------------------------
-#  factorial(e + n)    (e + m + 1)(e + m + 2)...(e + n)
+  if (car(p1) === symbol(MULTIPLY)) {
+    sfac_product(p1);
+    defs.expanding = x;
+    return;
+  }
 
-# this function is not actually used, but
-# all these simplifications
-# do happen automatically via simplify
-simplifyfactorials = ->
-  x = 0
+  push(p1);
 
-  save()
+  defs.expanding = x;
+}
 
-  x = expanding
-  expanding = 0
+function sfac_product(p1: U) {
+  const s = defs.tos;
 
-  p1 = pop()
+  p1 = cdr(p1);
+  let n = 0;
+  while (iscons(p1)) {
+    push(car(p1));
+    p1 = cdr(p1);
+    n++;
+  }
 
-  if (car(p1) == symbol(ADD))
-    push(zero)
-    p1 = cdr(p1)
-    while (iscons(p1))
-      push(car(p1))
-      simplifyfactorials()
-      add()
-      p1 = cdr(p1)
-    expanding = x
-    restore()
-    return
+  for (let i = 0; i < n - 1; i++) {
+    if (defs.stack[s + i] === symbol(NIL)) {
+      continue;
+    }
+    for (let j = i + 1; j < n; j++) {
+      if (defs.stack[s + j] === symbol(NIL)) {
+        continue;
+      }
+      sfac_product_f(s, i, j);
+    }
+  }
 
-  if (car(p1) == symbol(MULTIPLY))
-    sfac_product()
-    expanding = x
-    restore()
-    return
+  push(defs.one);
 
-  push(p1)
+  for (let i = 0; i < n; i++) {
+    if (defs.stack[s + i] === symbol(NIL)) {
+      continue;
+    }
+    push(defs.stack[s + i]);
+    multiply();
+  }
 
-  expanding = x
-  restore()
+  p1 = pop();
 
-sfac_product = ->
-  i = 0
-  j = 0
-  n = 0
+  moveTos(defs.tos - n);
 
-  s = tos
+  push(p1);
+}
 
-  p1 = cdr(p1)
-  n = 0
-  while (iscons(p1))
-    push(car(p1))
-    p1 = cdr(p1)
-    n++
+function sfac_product_f(s: number, a: number, b: number) {
+  let p3: U, p4: U;
 
-  for i in [0...(n - 1)]
-    if (stack[s + i] == symbol(NIL))
-      continue
-    for j in [(i + 1)...n]
-      if (stack[s + j] == symbol(NIL))
-        continue
-      sfac_product_f(s, i, j)
+  let p1 = defs.stack[s + a];
+  let p2 = defs.stack[s + b];
 
-  push(one)
+  if (ispower(p1)) {
+    p3 = caddr(p1);
+    p1 = cadr(p1);
+  } else {
+    p3 = defs.one;
+  }
 
-  for i in [0...n]
-    if (stack[s+i] == symbol(NIL))
-      continue
-    push(stack[s+i])
-    multiply()
+  if (ispower(p2)) {
+    p4 = caddr(p2);
+    p2 = cadr(p2);
+  } else {
+    p4 = defs.one;
+  }
 
-  p1 = pop()
+  if (isfactorial(p1) && isfactorial(p2)) {
+    push(p3);
+    push(p4);
+    add();
+    yyexpand();
+    let n = pop_integer();
+    if (n !== 0) {
+      return;
+    }
 
-  moveTos tos - n
+    // Find the difference between the two factorial args.
+    // For example, the difference between (a + 2)! and a! is 2.
+    push(cadr(p1));
+    push(cadr(p2));
+    subtract();
+    yyexpand(); // to simplify
 
-  push(p1)
+    n = pop_integer();
+    if (n === 0 || isNaN(n)) {
+      return;
+    }
+    if (n < 0) {
+      n = -n;
+      const temp1 = p1;
+      p1 = p2;
+      p2 = temp1;
 
-sfac_product_f = (s,a,b) ->
-  i = 0
-  n = 0
+      const temp2 = p3;
+      p3 = p4;
+      p4 = temp2;
+    }
 
-  p1 = stack[s + a]
-  p2 = stack[s + b]
+    push(defs.one);
 
-  if (ispower(p1))
-    p3 = caddr(p1)
-    p1 = cadr(p1)
-  else
-    p3 = one
-
-  if (ispower(p2))
-    p4 = caddr(p2)
-    p2 = cadr(p2)
-  else
-    p4 = one
-
-  if (isfactorial(p1) && isfactorial(p2))
-
-    # Determine if the powers cancel.
-
-    push(p3)
-    push(p4)
-    add()
-    yyexpand()
-    n = pop_integer()
-    if (n != 0)
-      return
-
-    # Find the difference between the two factorial args.
-
-    # For example, the difference between (a + 2)! and a! is 2.
-
-    push(cadr(p1))
-    push(cadr(p2))
-    subtract()
-    yyexpand(); # to simplify
-
-    n = pop_integer()
-    if (n == 0 || isNaN(n))
-      return
-    if (n < 0)
-      n = -n
-      p5 = p1
-      p1 = p2
-      p2 = p5
-      p5 = p3
-      p3 = p4
-      p4 = p5
-
-    push(one)
-
-    for i in [1..n]
-      push(cadr(p2))
-      push_integer(i)
-      add()
-      push(p3)
-      power()
-      multiply()
-    stack[s+a] = pop()
-    stack[s+b] = symbol(NIL)
+    for (let i = 1; i <= n; i++) {
+      push(cadr(p2));
+      push_integer(i);
+      add();
+      push(p3);
+      power();
+      multiply();
+    }
+    defs.stack[s + a] = pop();
+    defs.stack[s + b] = symbol(NIL);
+  }
+}

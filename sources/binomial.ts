@@ -1,63 +1,67 @@
-#  Binomial coefficient
-#
-#  Input:    tos-2    n
-#
-#      tos-1    k
-#
-#  Output:    Binomial coefficient on stack
-#
-#  binomial(n, k) = n! / k! / (n - k)!
-#
-#  The binomial coefficient vanishes for k < 0 or k > n. (A=B, p. 19)
+import { caddr, cadr, defs, isNumericAtom, U } from '../runtime/defs';
+import { pop, push } from '../runtime/stack';
+import { lessp } from '../sources/misc';
+import { subtract } from './add';
+import { Eval } from './eval';
+import { factorial } from './factorial';
+import { divide } from './multiply';
+//  Binomial coefficient
+//
+//  Input:    tos-2    n
+//
+//      tos-1    k
+//
+//  Output:    Binomial coefficient on stack
+//
+//  binomial(n, k) = n! / k! / (n - k)!
+//
+//  The binomial coefficient vanishes for k < 0 or k > n. (A=B, p. 19)
 
+export function Eval_binomial(p1: U) {
+  push(cadr(p1));
+  Eval();
+  push(caddr(p1));
+  Eval();
+  binomial();
+}
 
+function binomial() {
+  ybinomial();
+}
 
+function ybinomial() {
+  const K = pop();
+  const N = pop();
 
-Eval_binomial = ->
-  push(cadr(p1))
-  Eval()
-  push(caddr(p1))
-  Eval()
-  binomial()
+  if (!BINOM_check_args(N, K)) {
+    push(defs.zero);
+    return;
+  }
 
-binomial = ->
-  save()
-  ybinomial()
-  restore()
+  push(N);
+  factorial();
 
-#define N p1
-#define K p2
+  push(K);
+  factorial();
 
-ybinomial = ->
-  p2 = pop()
-  p1 = pop()
+  divide();
 
-  if (BINOM_check_args() == 0)
-    push(zero)
-    return
+  push(N);
+  push(K);
+  subtract();
+  factorial();
 
-  push(p1)
-  factorial()
+  divide();
+}
 
-  push(p2)
-  factorial()
-
-  divide()
-
-  push(p1)
-  push(p2)
-  subtract()
-  factorial()
-
-  divide()
-
-BINOM_check_args = ->
-  if (isNumericAtom(p1) && lessp(p1, zero))
-    return 0
-  else if (isNumericAtom(p2) && lessp(p2, zero))
-    return 0
-  else if (isNumericAtom(p1) && isNumericAtom(p2) && lessp(p1, p2))
-    return 0
-  else
-    return 1
-
+function BINOM_check_args(N: U, K: U): boolean {
+  if (isNumericAtom(N) && lessp(N, defs.zero)) {
+    return false;
+  } else if (isNumericAtom(K) && lessp(K, defs.zero)) {
+    return false;
+  } else if (isNumericAtom(N) && isNumericAtom(K) && lessp(N, K)) {
+    return false;
+  } else {
+    return true;
+  }
+}

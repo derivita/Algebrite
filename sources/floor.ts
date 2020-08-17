@@ -1,43 +1,48 @@
+import { cadr, FLOOR, isdouble, isNumericAtom, Num, U } from '../runtime/defs';
+import { pop, push } from '../runtime/stack';
+import { push_symbol } from '../runtime/symbol';
+import { add } from './add';
+import { push_double, push_integer } from './bignum';
+import { Eval } from './eval';
+import { isinteger, isnegativenumber } from './is';
+import { list } from './list';
+import { mdiv } from './mmul';
+export function Eval_floor(p1: U) {
+  push(cadr(p1));
+  Eval();
+  yfloor();
+}
 
+function yfloor() {
+  yyfloor();
+}
 
-Eval_floor = ->
-  push(cadr(p1))
-  Eval()
-  yfloor()
+function yyfloor() {
+  const p1 = pop();
 
-yfloor = ->
-  save()
-  yyfloor()
-  restore()
+  if (!isNumericAtom(p1)) {
+    push_symbol(FLOOR);
+    push(p1);
+    list(2);
+    return;
+  }
 
-yyfloor = ->
-  d = 0.0
+  if (isdouble(p1)) {
+    const d = Math.floor(p1.d);
+    push_double(d);
+    return;
+  }
 
-  p1 = pop()
+  if (isinteger(p1)) {
+    push(p1);
+    return;
+  }
 
-  if (!isNumericAtom(p1))
-    push_symbol(FLOOR)
-    push(p1)
-    list(2)
-    return
+  const p3 = new Num(mdiv(p1.q.a, p1.q.b));
+  push(p3);
 
-  if (isdouble(p1))
-    d = Math.floor(p1.d)
-    push_double(d)
-    return
-
-  if (isinteger(p1))
-    push(p1)
-    return
-
-  p3 = new U()
-  p3.k = NUM
-  p3.q.a = mdiv(p1.q.a, p1.q.b)
-  p3.q.b = mint(1)
-  push(p3)
-
-  if (isnegativenumber(p1))
-    push_integer(-1)
-    add()
-
-
+  if (isnegativenumber(p1)) {
+    push_integer(-1);
+    add();
+  }
+}

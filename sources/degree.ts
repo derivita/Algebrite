@@ -1,4 +1,22 @@
-### deg =====================================================================
+import {
+  caddr,
+  cadr,
+  car,
+  cdr,
+  defs,
+  iscons,
+  isNumericAtom,
+  NIL,
+  POWER,
+  symbol,
+  U,
+} from '../runtime/defs';
+import { pop, push } from '../runtime/stack';
+import { equal, lessp } from '../sources/misc';
+import { Eval } from './eval';
+import { guess } from './guess';
+import { isZeroAtomOrTensor } from './is';
+/* deg =====================================================================
 
 Tags
 ----
@@ -12,58 +30,63 @@ General description
 -------------------
 Returns the degree of polynomial p(x).
 
-###
+*/
+export function Eval_degree(p1: U) {
+  push(cadr(p1));
+  Eval();
+  push(caddr(p1));
+  Eval();
+  p1 = pop();
+  if (p1 === symbol(NIL)) {
+    guess();
+  } else {
+    push(p1);
+  }
+  degree();
+}
 
+//-----------------------------------------------------------------------------
+//
+//  Find the degree of a polynomial
+//
+//  Input:    tos-2    p(x)
+//
+//      tos-1    x
+//
+//  Output:    Result on stack
+//
+//  Note: Finds the largest numerical power of x. Does not check for
+//  weirdness in p(x).
+//
+//-----------------------------------------------------------------------------
+export function degree() {
+  const X = pop();
+  const POLY = pop();
+  let DEGREE: U = defs.zero;
+  [DEGREE] = yydegree(POLY, X, DEGREE);
+  push(DEGREE);
+}
 
-Eval_degree = ->
-  push(cadr(p1))
-  Eval()
-  push(caddr(p1))
-  Eval()
-  p1 = pop()
-  if (p1 == symbol(NIL))
-    guess()
-  else
-    push(p1)
-  degree()
+function yydegree(POLY: U, X: U, DEGREE: U): [U] {
+  if (equal(POLY, X)) {
+    if (isZeroAtomOrTensor(DEGREE)) {
+      DEGREE = defs.one;
+    }
+  } else if (car(POLY) === symbol(POWER)) {
+    if (
+      equal(cadr(POLY), X) &&
+      isNumericAtom(caddr(POLY)) &&
+      lessp(DEGREE, caddr(POLY))
+    ) {
+      DEGREE = caddr(POLY);
+    }
+  } else if (iscons(POLY)) {
+    POLY = cdr(POLY);
 
-#-----------------------------------------------------------------------------
-#
-#  Find the degree of a polynomial
-#
-#  Input:    tos-2    p(x)
-#
-#      tos-1    x
-#
-#  Output:    Result on stack
-#
-#  Note: Finds the largest numerical power of x. Does not check for
-#  weirdness in p(x).
-#
-#-----------------------------------------------------------------------------
-
-#define POLY p1
-#define X p2
-#define DEGREE p3
-
-degree = ->
-  save()
-  p2 = pop()
-  p1 = pop()
-  p3 = zero
-  yydegree(p1)
-  push(p3)
-  restore()
-
-yydegree = (p) ->
-  if (equal(p, p2))
-    if (isZeroAtomOrTensor(p3))
-      p3 = one
-  else if (car(p) == symbol(POWER))
-    if (equal(cadr(p), p2) && isNumericAtom(caddr(p)) && lessp(p3, caddr(p)))
-      p3 = caddr(p)
-  else if (iscons(p))
-    p = cdr(p)
-    while (iscons(p))
-      yydegree(car(p))
-      p = cdr(p)
+    while (iscons(POLY)) {
+      [DEGREE] = yydegree(car(POLY), X, DEGREE);
+      POLY = cdr(POLY);
+    }
+  }
+  return [DEGREE];
+}

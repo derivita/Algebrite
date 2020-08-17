@@ -1,161 +1,171 @@
-# pretty print
+import {
+  ADD,
+  car,
+  cdr,
+  defs,
+  FOR,
+  iscons,
+  MULTIPLY,
+  POWER,
+  symbol,
+  SYMBOL_S,
+  SYMBOL_T,
+  SYMBOL_X,
+  SYMBOL_Y,
+  SYMBOL_Z,
+  U,
+} from '../runtime/defs';
+import { moveTos, pop, push, swap } from '../runtime/stack';
+import { push_integer } from './bignum';
+import { coeff } from './coeff';
+import { cons } from './cons';
+import { equaln, ispolyexpandedform, isZeroAtomOrTensor } from './is';
+import { list } from './list';
+// pretty print
 
+export function bake() {
+  defs.expanding++;
 
+  let p1: U = pop();
 
-bake = ->
-  h = 0
-  s = 0
-  t = 0
-  x = 0
-  y = 0
-  z = 0
+  const s = ispolyexpandedform(p1, symbol(SYMBOL_S));
+  const t = ispolyexpandedform(p1, symbol(SYMBOL_T));
+  const x = ispolyexpandedform(p1, symbol(SYMBOL_X));
+  const y = ispolyexpandedform(p1, symbol(SYMBOL_Y));
+  const z = ispolyexpandedform(p1, symbol(SYMBOL_Z));
 
-  expanding++
+  if (s && !t && !x && !y && !z) {
+    const p2: U = symbol(SYMBOL_S);
+    bake_poly(p1, p2);
+  } else if (!s && t && !x && !y && !z) {
+    const p2: U = symbol(SYMBOL_T);
+    bake_poly(p1, p2);
+  } else if (!s && !t && x && !y && !z) {
+    const p2: U = symbol(SYMBOL_X);
+    bake_poly(p1, p2);
+  } else if (!s && !t && !x && y && !z) {
+    const p2: U = symbol(SYMBOL_Y);
+    bake_poly(p1, p2);
+  } else if (!s && !t && !x && !y && z) {
+    const p2: U = symbol(SYMBOL_Z);
+    bake_poly(p1, p2);
+    // don't bake the contents of some constructs such as "for"
+    // because we don't want to evaluate the body of
+    // such constructs "statically", i.e. without fully running
+    // the loops.
+  } else if (iscons(p1) && car(p1) !== symbol(FOR)) {
+    const h = defs.tos;
+    push(car(p1));
+    p1 = cdr(p1);
+    while (iscons(p1)) {
+      push(car(p1));
+      bake();
+      p1 = cdr(p1);
+    }
+    list(defs.tos - h);
+  } else {
+    push(p1);
+  }
 
-  save()
+  defs.expanding--;
+}
 
-  p1 = pop()
+export function polyform() {
+  let p2: U = pop();
+  let p1: U = pop();
 
-  s = ispoly(p1, symbol(SYMBOL_S))
-  t = ispoly(p1, symbol(SYMBOL_T))
-  x = ispoly(p1, symbol(SYMBOL_X))
-  y = ispoly(p1, symbol(SYMBOL_Y))
-  z = ispoly(p1, symbol(SYMBOL_Z))
+  if (ispolyexpandedform(p1, p2)) {
+    bake_poly(p1, p2);
+  } else if (iscons(p1)) {
+    const h = defs.tos;
+    push(car(p1));
+    p1 = cdr(p1);
+    while (iscons(p1)) {
+      push(car(p1));
+      push(p2);
+      polyform();
+      p1 = cdr(p1);
+    }
+    list(defs.tos - h);
+  } else {
+    push(p1);
+  }
+}
 
-  if (s == 1 && t == 0 && x == 0 && y == 0 && z == 0)
-    p2 = symbol(SYMBOL_S)
-    bake_poly()
-  else if (s == 0 && t == 1 && x == 0 && y == 0 && z == 0)
-    p2 = symbol(SYMBOL_T)
-    bake_poly()
-  else if (s == 0 && t == 0 && x == 1 && y == 0 && z == 0)
-    p2 = symbol(SYMBOL_X)
-    bake_poly()
-  else if (s == 0 && t == 0 && x == 0 && y == 1 && z == 0)
-    p2 = symbol(SYMBOL_Y)
-    bake_poly()
-  else if (s == 0 && t == 0 && x == 0 && y == 0 && z == 1)
-    p2 = symbol(SYMBOL_Z)
-    bake_poly()
-  # don't bake the contents of some constructs such as "for"
-  # because we don't want to evaluate the body of
-  # such constructs "statically", i.e. without fully running
-  # the loops.
-  else if (iscons(p1)) and car(p1) != symbol(FOR)
-    h = tos
-    push(car(p1))
-    p1 = cdr(p1)
-    while (iscons(p1))
-      push(car(p1))
-      bake()
-      p1 = cdr(p1)
-    list(tos - h)
-  else
-    push(p1)
+function bake_poly(poly: U, x: U) {
+  //U **a
+  const a = defs.tos;
+  push(poly); // p(x)
+  push(x); // x
+  const k = coeff();
+  const h = defs.tos;
+  for (let i = k - 1; i >= 0; i--) {
+    const term = defs.stack[a + i];
+    bake_poly_term(i, term, x);
+  }
+  const n = defs.tos - h;
+  if (n > 1) {
+    list(n);
+    push(symbol(ADD));
+    swap();
+    cons();
+  }
+  const result = pop();
+  moveTos(defs.tos - k);
+  push(result);
+}
 
-  restore()
+// p1 points to coefficient of p2 ^ k
 
-  expanding--
+// k is an int
+function bake_poly_term(k: number, coefficient: U, term: U) {
+  if (isZeroAtomOrTensor(coefficient)) {
+    return;
+  }
 
-polyform = ->
-  h = 0
+  // constant term?
+  if (k === 0) {
+    if (car(coefficient) === symbol(ADD)) {
+      coefficient = cdr(coefficient);
+      while (iscons(coefficient)) {
+        push(car(coefficient));
+        coefficient = cdr(coefficient);
+      }
+    } else {
+      push(coefficient);
+    }
+    return;
+  }
 
-  save()
+  const h = defs.tos;
 
-  p2 = pop()
-  p1 = pop()
+  // coefficient
+  if (car(coefficient) === symbol(MULTIPLY)) {
+    coefficient = cdr(coefficient);
+    while (iscons(coefficient)) {
+      push(car(coefficient));
+      coefficient = cdr(coefficient);
+    }
+  } else if (!equaln(coefficient, 1)) {
+    push(coefficient);
+  }
 
-  if (ispoly(p1, p2))
-    bake_poly()
-  else if (iscons(p1))
-    h = tos
-    push(car(p1))
-    p1 = cdr(p1)
-    while (iscons(p1))
-      push(car(p1))
-      push(p2)
-      polyform()
-      p1 = cdr(p1)
-    list(tos - h)
-  else
-    push(p1)
+  // x ^ k
+  if (k === 1) {
+    push(term);
+  } else {
+    push(symbol(POWER));
+    push(term);
+    push_integer(k);
+    list(3);
+  }
 
-  restore()
+  const n = defs.tos - h;
 
-bake_poly = ->
-  h = 0
-  i = 0
-  k = 0
-  n = 0
-  #U **a
-  a = tos
-  push(p1);    # p(x)
-  push(p2);    # x
-  k = coeff()
-  h = tos
-  for i in[(k - 1)..0] by -1
-    p1 = stack[a+i]
-    bake_poly_term(i)
-  n = tos - h
-  if (n > 1)
-    list(n)
-    push(symbol(ADD))
-    swap()
-    cons()
-  p1 = pop()
-  moveTos tos - k
-  push(p1)
-
-# p1 points to coefficient of p2 ^ k
-
-# k is an int
-bake_poly_term = (k) ->
-  h = 0
-  n = 0
-
-  if (isZeroAtomOrTensor(p1))
-    return
-
-  # constant term?
-
-  if (k == 0)
-    if (car(p1) == symbol(ADD))
-      p1 = cdr(p1)
-      while (iscons(p1))
-        push(car(p1))
-        p1 = cdr(p1)
-    else
-      push(p1)
-    return
-
-  h = tos
-
-  # coefficient
-
-  if (car(p1) == symbol(MULTIPLY))
-    p1 = cdr(p1)
-    while (iscons(p1))
-      push(car(p1))
-      p1 = cdr(p1)
-  else if (!equaln(p1, 1))
-    push(p1)
-
-  # x ^ k
-
-  if (k == 1)
-    push(p2)
-  else
-    push(symbol(POWER))
-    push(p2)
-    push_integer(k)
-    list(3)
-
-  n = tos - h
-
-  if (n > 1)
-    list(n)
-    push(symbol(MULTIPLY))
-    swap()
-    cons()
-
-
+  if (n > 1) {
+    list(n);
+    push(symbol(MULTIPLY));
+    swap();
+    cons();
+  }
+}

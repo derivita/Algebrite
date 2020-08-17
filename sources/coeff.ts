@@ -1,4 +1,22 @@
-### coeff =====================================================================
+import {
+  cadddr,
+  caddr,
+  cadr,
+  defs,
+  NIL,
+  symbol,
+  SYMBOL_X,
+  U,
+} from '../runtime/defs';
+import { pop, push } from '../runtime/stack';
+import { equal } from '../sources/misc';
+import { subtract } from './add';
+import { Eval } from './eval';
+import { filter } from './filter';
+import { divide } from './multiply';
+import { power } from './power';
+import { subst } from './subst';
+/* coeff =====================================================================
 
 Tags
 ----
@@ -12,95 +30,88 @@ General description
 -------------------
 Returns the coefficient of x^n in polynomial p. The x argument can be omitted for polynomials in x.
 
-###
+*/
+export function Eval_coeff(p1: U) {
+  push(cadr(p1));
+  Eval();
 
+  push(caddr(p1));
+  Eval();
 
+  push(cadddr(p1));
+  Eval();
 
-#define P p1
-#define X p2
-#define N p3
+  let N = pop();
+  let X = pop();
+  const P = pop();
 
-Eval_coeff = ->
-  push(cadr(p1));      # 1st arg, p
-  Eval()
+  if (N === symbol(NIL)) {
+    // only 2 args?
+    N = X;
+    X = symbol(SYMBOL_X);
+  }
 
-  push(caddr(p1));    # 2nd arg, x
-  Eval()
+  push(P); // divide p by x^n
+  push(X);
+  push(N);
+  power();
+  divide();
 
-  push(cadddr(p1));    # 3rd arg, n
-  Eval()
+  push(X); // keep the constant part
+  filter();
+}
 
-  p3 = pop(); # p3 is N
-  p2 = pop(); # p2 is X
-  p1 = pop(); # p1 is P
+//-----------------------------------------------------------------------------
+//
+//  Put polynomial coefficients on the stack
+//
+//  Input:  tos-2    p(x) (the polynomial)
+//
+//      tos-1    x (the variable)
+//
+//  Output:    Returns number of coefficients on stack
+//
+//      tos-n    Coefficient of x^0
+//
+//      tos-1    Coefficient of x^(n-1)
+//
+//-----------------------------------------------------------------------------
 
-  if (p3 == symbol(NIL))   # p3 is N  # only 2 args?
-    p3 = p2;  # p2 is X  # p3 is N
-    p2 = symbol(SYMBOL_X);  # p2 is X
+export function coeff() {
+  let p3: U;
+  let p2 = pop();
+  let p1 = pop();
 
-  push(p1);  # p1 is P      # divide p by x^n
-  push(p2);  # p2 is X
-  push(p3);  # p3 is N
-  power()
-  divide()
+  const h = defs.tos;
 
-  push(p2);  # p2 is X      # keep the constant part
-  filter()
+  while (true) {
+    push(p1);
+    push(p2);
+    push(defs.zero);
+    subst();
+    Eval();
 
-#-----------------------------------------------------------------------------
-#
-#  Put polynomial coefficients on the stack
-#
-#  Input:  tos-2    p(x) (the polynomial)
-#
-#      tos-1    x (the variable)
-#
-#  Output:    Returns number of coefficients on stack
-#
-#      tos-n    Coefficient of x^0
-#
-#      tos-1    Coefficient of x^(n-1)
-#
-#-----------------------------------------------------------------------------
+    p3 = pop();
+    push(p3);
 
-coeff = ->
+    push(p1);
+    push(p3);
+    subtract();
 
-  save()
+    p1 = pop();
 
-  p2 = pop()
-  p1 = pop()
+    if (equal(p1, defs.zero)) {
+      const n = defs.tos - h;
+      return n;
+    }
 
-  h = tos
-
-  while 1
-
-    push(p1)
-    push(p2)
-    push(zero)
-    subst()
-    Eval()
-
-    p3 = pop()
-    push(p3)
-
-    push(p1)
-    push(p3)
-    subtract()
-
-    p1 = pop()
-
-    if (equal(p1, zero))
-      n = tos - h
-      restore()
-      return n
-
-    push(p1)
-    push(p2)
-    prev_expanding = expanding
-    expanding = 1
-    divide()
-    expanding = prev_expanding
-    #console.log("just divided: " + stack[tos-1].toString())
-    p1 = pop()
-
-
+    push(p1);
+    push(p2);
+    const prev_expanding = defs.expanding;
+    defs.expanding = 1;
+    divide();
+    defs.expanding = prev_expanding;
+    //console.log("just divided: " + stack[tos-1].toString())
+    p1 = pop();
+  }
+}

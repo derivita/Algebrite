@@ -1,79 +1,32 @@
-test_mmul = ->
-  i = 0
-  j = 0
-  m = 0
-  logout("test mmul\n")
-  for i in [-100..100]
-    for j in [-100..100]
-      test_mmulf(i, j, i * j)
-  logout("ok\n")
+import { mint } from '../sources/bignum';
+import { mdiv, mmod, mmul } from '../sources/mmul';
+import { test } from '../test-harness';
 
-test_mmulf = (na, nb, nc) ->
+function make_test(f: Function, expected: (i: number, j: number) => number) {
+  test(f.name, t => {
+    for (let i = -100; i <= 100; i++) {
+      for (let j = -1000; j <= 100; j++) {
+        const a = mint(i);
+        const b = mint(j);
+        const e = expected(i, j);
+        if (!isFinite(e)) {
+          continue;
+        }
+        const c = mint(e);
+        t.is(c.toString(), f(a, b).toString(), `${f.name}(${a}, ${b})`);
+      }
+    }
+  });
+}
 
-  a = mint(na)
-  b = mint(nb)
-  c = mint(nc)
+make_test(mmul, (i, j) => i * j);
 
-  d = mmul(a, b)
+make_test(mdiv, (i, j) => {
+  if (i / j > 0) {
+    return Math.floor(i / j);
+  } else {
+    return Math.ceil(i / j);
+  }
+});
 
-  if (mcmp(c, d) == 0)
-    return
-  else
-    throw new Error("test_mmulf error")
-
-test_mdiv = ->
-  i = 0
-  j = 0
-  m = 0
-  logout("test mdiv\n")
-  for i in [-100..100]
-    for j in [-100..100]
-      if (j)
-        if i/j > 0
-          expectedResult = Math.floor(i / j)
-        else
-          expectedResult = Math.ceil(i / j)
-        test_mdivf(i, j, expectedResult)
-  logout("ok\n")
-
-test_mdivf = (na, nb, nc) ->
-
-  a = mint(na)
-  b = mint(nb)
-  c = mint(nc)
-
-  d = mdiv(a, b)
-
-  if (mcmp(c, d) == 0)
-    return
-  else
-    debugger
-    throw new Error("test_mdivf error")
-
-
-test_mmod = ->
-  i = 0
-  j = 0
-  m = 0
-  logout("test mmod\n")
-  for i in [-100..100]
-    for j in [-100..100]
-      if (j)
-        test_mmodf(i, j, i % j)
-  logout("ok\n")
-
-test_mmodf = (na,nb,nc) ->
-
-  a = mint(na)
-  b = mint(nb)
-  c = mint(nc)
-
-  d = mmod(a, b)
-
-  if (mcmp(c, d) == 0)
-    return
-  else
-    throw new Error("test_mmodf error")
-
-
-
+make_test(mmod, (i, j) => i % j);

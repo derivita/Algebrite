@@ -1,15 +1,3 @@
-test_clearall = ->
-  run_test [
+import { run_test } from '../test-harness';
 
-    "a = 1",
-    "",
-      
-    "a",
-    "1",
-      
-    "clearall",
-    "",
-      
-    "a",
-    "a",
-  ]
+run_test(['a = 1', '', 'a', '1', 'clearall', '', 'a', 'a']);

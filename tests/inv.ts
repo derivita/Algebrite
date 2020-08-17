@@ -1,24 +1,21 @@
-test_inv = ->
-  run_test [
+import { run_test } from '../test-harness';
 
-    "inv(a)",
-    "inv(a)",
+run_test([
+  'inv(a)',
+  'inv(a)',
 
-    "inv(inv(a))",
-    "a",
+  'inv(inv(a))',
+  'a',
 
-    "inv(inv(inv(a)))",
-    "inv(a)",
+  'inv(inv(inv(a)))',
+  'inv(a)',
 
-    "inv(inv(inv(inv(a))))",
-    "a",
+  'inv(inv(inv(inv(a))))',
+  'a',
 
-    "inv(a·b·c)",
-    "inner(inv(c),inner(inv(b),inv(a)))",
+  'inv(a·b·c)',
+  'inner(inv(c),inner(inv(b),inv(a)))',
 
-    "inv(I)",
-    "I",
-
-  ]
-
-
+  'inv(I)',
+  'I',
+]);

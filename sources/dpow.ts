@@ -1,45 +1,45 @@
-# power function for double precision floating point
+import { defs } from '../runtime/defs';
+import { stop } from '../runtime/run';
+import { push } from '../runtime/stack';
+import { add } from './add';
+import { pop_double, push_double } from './bignum';
+import { multiply } from './multiply';
+// power function for double precision floating point
+export function dpow() {
+  let a = 0.0;
+  let b = 0.0;
 
+  const expo = pop_double();
+  const base = pop_double();
 
+  // divide by zero?
+  if (base === 0.0 && expo < 0.0) {
+    stop('divide by zero');
+  }
 
-dpow = ->
-  a = 0.0
-  b = 0.0
-  base = 0.0
-  expo = 0.0
-  result = 0.0
-  theta = 0.0
+  // nonnegative base or integer power?
+  if (base >= 0.0 || expo % 1.0 === 0.0) {
+    const result = Math.pow(base, expo);
+    push_double(result);
+    return;
+  }
 
-  expo = pop_double()
-  base = pop_double()
+  const result = Math.pow(Math.abs(base), expo);
 
-  # divide by zero?
+  const theta = Math.PI * expo;
 
-  if (base == 0.0 && expo < 0.0)
-    stop("divide by zero")
+  // this ensures the real part is 0.0 instead of a tiny fraction
+  if (expo % 0.5 === 0.0) {
+    a = 0.0;
+    b = Math.sin(theta);
+  } else {
+    a = Math.cos(theta);
+    b = Math.sin(theta);
+  }
 
-  # nonnegative base or integer power?
-
-  if (base >= 0.0 || (expo % 1.0) == 0.0)
-    result = Math.pow(base, expo)
-    push_double(result)
-    return
-
-  result = Math.pow(Math.abs(base), expo)
-
-  theta = Math.PI * expo
-
-  # this ensures the real part is 0.0 instead of a tiny fraction
-
-  if ((expo % 0.5) == 0.0)
-    a = 0.0
-    b = Math.sin(theta)
-  else
-    a = Math.cos(theta)
-    b = Math.sin(theta)
-
-  push_double(a * result)
-  push_double(b * result)
-  push(imaginaryunit)
-  multiply()
-  add()
+  push_double(a * result);
+  push_double(b * result);
+  push(defs.imaginaryunit);
+  multiply();
+  add();
+}

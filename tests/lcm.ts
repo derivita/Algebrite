@@ -1,14 +1,14 @@
-test_lcm = ->
-  run_test [
+import { run_test } from '../test-harness';
 
-    "lcm(4,6)",
-    "12",
+run_test([
+  'lcm(4,6)',
+  '12',
 
-    "lcm(4*x,6*x*y)",
-    "12*x*y",
+  'lcm(4*x,6*x*y)',
+  '12*x*y',
 
-    # multiple arguments
+  // multiple arguments
 
-    "lcm(2,3,4)",
-    "12",
-  ]
+  'lcm(2,3,4)',
+  '12',
+]);

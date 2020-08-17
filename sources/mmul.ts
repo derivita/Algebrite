@@ -1,19 +1,21 @@
-# Bignum multiplication and division
+// Bignum multiplication and division
+export function mmul(
+  a: bigInt.BigInteger,
+  b: bigInt.BigInteger
+): bigInt.BigInteger {
+  return a.multiply(b);
+}
 
+export function mdiv(
+  a: bigInt.BigInteger,
+  b: bigInt.BigInteger
+): bigInt.BigInteger {
+  return a.divide(b);
+}
 
+// a = a + b
 
-
-
-mmul = (a, b) ->
-  return a.multiply b
-
-
-mdiv = (a, b) ->
-  return a.divide b
-
-# a = a + b
-
-###
+/*
 static void
 addf(unsigned int *a, unsigned int *b, int len)
 {
@@ -56,20 +58,24 @@ mulf(unsigned int *a, unsigned int *b, int len, unsigned int c)
   }
   a[i] = (unsigned int) t
 }
-###
+*/
+export function mmod(
+  a: bigInt.BigInteger,
+  b: bigInt.BigInteger
+): bigInt.BigInteger {
+  return a.mod(b);
+}
 
-mmod = (a,b) ->
-  return a.mod b
+// return both quotient and remainder of a/b
+// we'd have this method as divmod(number)
+// but obviously doesn't change the passed parameters
+export function mdivrem(
+  a: bigInt.BigInteger,
+  b: bigInt.BigInteger
+): [bigInt.BigInteger, bigInt.BigInteger] {
+  const toReturn = a.divmod(b);
+  return [toReturn.quotient, toReturn.remainder];
+}
 
-# return both quotient and remainder of a/b
-# we'd have this method as divmod(number)
-# but obviously doesn't change the passed parameters
-
-mdivrem = (a,b) ->
-  toReturn = a.divmod b
-  return [toReturn.quotient, toReturn.remainder]
-
-#if SELFTEST
-
-# small integer tests
-
+//if SELFTEST
+// small integer tests

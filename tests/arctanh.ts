@@ -1,11 +1,3 @@
-test_arctanh = ->
-  run_test [
-    "arctanh(0.0)",
-    "0.0",
+import { run_test } from '../test-harness';
 
-    "arctanh(0)",
-    "0",
-
-    "arctanh(tanh(x))",
-    "x",
-  ]
+run_test(['arctanh(0.0)', '0.0', 'arctanh(0)', '0', 'arctanh(tanh(x))', 'x']);

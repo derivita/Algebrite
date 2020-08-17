@@ -1,21 +1,21 @@
-test_choose = ->
-  run_test [
-    "choose(52,5)",
-    "2598960",
+import { run_test } from '../test-harness';
 
-    "choose(n,k)",
-    "n!/(k!*(-k+n)!)",
+run_test([
+  'choose(52,5)',
+  '2598960',
 
-    "choose(0,k)",
-    "1/(k!*(-k)!)",
+  'choose(n,k)',
+  'n!/(k!*(-k+n)!)',
 
-    "choose(n,0)",
-    "1",
+  'choose(0,k)',
+  '1/(k!*(-k)!)',
 
-    "choose(-1,k)",
-    "0",
+  'choose(n,0)',
+  '1',
 
-    "choose(n,-1)",
-    "0",
-  ]
+  'choose(-1,k)',
+  '0',
 
+  'choose(n,-1)',
+  '0',
+]);

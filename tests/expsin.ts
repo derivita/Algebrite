@@ -1,6 +1,3 @@
-test_expsin = ->
-  run_test [
+import { run_test } from '../test-harness';
 
-    "expsin(x)",
-    "1/2*i*exp(-i*x)-1/2*i*exp(i*x)",
-  ]
+run_test(['expsin(x)', '1/2*i*exp(-i*x)-1/2*i*exp(i*x)']);

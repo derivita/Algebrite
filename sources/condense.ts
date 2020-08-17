@@ -1,65 +1,73 @@
-# Condense an expression by factoring common terms.
-                                                                                
+import { gcd } from './gcd';
+import { ADD, cadr, car, cdr, defs, iscons, symbol, U } from '../runtime/defs';
+import { pop, push } from '../runtime/stack';
+import { yyexpand } from '../sources/misc';
+import { add } from './add';
+import { Eval } from './eval';
+import { divide, inverse, multiply_noexpand } from './multiply';
+// Condense an expression by factoring common terms.
 
+export function Eval_condense(p1: U) {
+  push(cadr(p1));
+  Eval();
+  Condense();
+}
 
-Eval_condense = ->
-  push(cadr(p1))
-  Eval()
-  Condense()
+export function Condense() {
+  const prev_expanding = defs.expanding;
+  defs.expanding = 0;
+  yycondense();
+  defs.expanding = prev_expanding;
+}
 
-Condense = ->
-  prev_expanding = expanding
-  expanding = 0
-  save()
-  yycondense()
-  restore()
-  expanding = prev_expanding
+export function yycondense() {
+  //expanding = 0
+  const p1 = pop();
 
-yycondense = ->
-  #expanding = 0
+  if (car(p1) !== symbol(ADD)) {
+    push(p1);
+    return;
+  }
 
-  p1 = pop()
+  // get gcd of all terms
 
-  if (car(p1) != symbol(ADD))
-    push(p1)
-    return
+  let p3 = cdr(p1);
+  push(car(p3));
+  p3 = cdr(p3);
+  while (iscons(p3)) {
+    push(car(p3));
+    //console.log "calculating gcd between: " + stack[tos - 1] + " and " + stack[tos - 2]
+    gcd();
+    //console.log "partial gcd: " + stack[tos - 1]
+    p3 = cdr(p3);
+  }
 
-  # get gcd of all terms
+  //console.log "condense: this is the gcd of all the terms: " + stack[tos - 1]
 
-  p3 = cdr(p1)
-  push(car(p3))
-  p3 = cdr(p3)
-  while (iscons(p3))
-    push(car(p3))
-    gcd()
-    p3 = cdr(p3)
+  // divide each term by gcd
 
-  #printf("condense: this is the gcd of all the terms:\n")
-  #print(stdout, stack[tos - 1])
+  inverse();
+  const p2 = pop();
+  push(defs.zero);
+  p3 = cdr(p1);
+  while (iscons(p3)) {
+    push(p2);
+    push(car(p3));
+    //multiply()
+    multiply_noexpand();
+    add();
+    p3 = cdr(p3);
+  }
 
-  # divide each term by gcd
+  // We multiplied above w/o expanding so some factors cancelled.
 
-  inverse()
-  p2 = pop()
-  push(zero)
-  p3 = cdr(p1)
-  while (iscons(p3))
-    push(p2)
-    push(car(p3))
-    multiply()
-    add()
-    p3 = cdr(p3)
+  // Now we expand which normalizes the result and, in some cases,
+  // simplifies it too (see test case H).
 
-  # We multiplied above w/o expanding so sum factors cancelled.
+  yyexpand();
 
-  # Now we expand which which normalizes the result and, in some cases,
-  # simplifies it too (see test case H).
+  // multiply result by gcd
 
-  yyexpand()
-
-  # multiply result by gcd
-
-  push(p2)
-  divide()
-
-
+  push(p2);
+  divide();
+}

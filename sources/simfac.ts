@@ -1,4 +1,28 @@
-###
+import {
+  ADD,
+  caadr,
+  cadadr,
+  caddr,
+  cadr,
+  car,
+  cdr,
+  defs,
+  FACTORIAL,
+  MULTIPLY,
+  NIL,
+  POWER,
+  symbol,
+  U,
+} from '../runtime/defs';
+import { pop, push } from '../runtime/stack';
+import { equal } from '../sources/misc';
+import { add, add_all, subtract } from './add';
+import { push_integer } from './bignum';
+import { Eval } from './eval';
+import { factorial } from './factorial';
+import { equaln, isminusone, isplusone } from './is';
+import { multiply_all_noexpand, reciprocate } from './multiply';
+/*
  Simplify factorials
 
 The following script
@@ -24,39 +48,37 @@ Then simplify the sum to get
  -------
   1 + n
 
-###
+*/
+// simplify factorials term-by-term
+function Eval_simfac(p1: U) {
+  push(cadr(p1));
+  Eval();
+  return simfac();
+}
 
+//if 1
+export function simfac() {
+  let p1: U;
+  p1 = pop();
+  if (car(p1) === symbol(ADD)) {
+    p1 = cdr(p1);
+    const terms = [];
+    while (p1 !== symbol(NIL)) {
+      push(car(p1));
+      simfac_term();
+      terms.push(pop());
+      p1 = cdr(p1);
+    }
+    push(add_all(terms));
+  } else {
+    push(p1);
+    simfac_term();
+  }
+  return;
+}
 
-
-# simplify factorials term-by-term
-
-Eval_simfac = ->
-  push(cadr(p1))
-  Eval()
-  simfac()
-
-#if 1
-
-simfac = ->
-  h = 0
-  save()
-  p1 = pop()
-  if (car(p1) == symbol(ADD))
-    h = tos
-    p1 = cdr(p1)
-    while (p1 != symbol(NIL))
-      push(car(p1))
-      simfac_term()
-      p1 = cdr(p1)
-    add_all(tos - h)
-  else
-    push(p1)
-    simfac_term()
-  restore()
-
-
-#else
-###
+//else
+/*
 void
 simfac(void)
 {
@@ -87,152 +109,161 @@ simfac(void)
   restore()
 }
 
-#endif
-###
+*endif
+*/
+function simfac_term() {
+  let p1 = pop();
 
-simfac_term = ->
-  h = 0
+  // if not a product of factors then done
+  if (car(p1) !== symbol(MULTIPLY)) {
+    push(p1);
+    return;
+  }
 
-  save()
+  // push all factors
+  const h = defs.tos;
+  p1 = cdr(p1);
+  while (p1 !== symbol(NIL)) {
+    push(car(p1));
+    p1 = cdr(p1);
+  }
 
-  p1 = pop()
+  // keep trying until no more to do
+  while (yysimfac(h)) {
+    // do nothing
+  }
 
-  # if not a product of factors then done
+  multiply_all_noexpand(defs.tos - h);
+}
 
-  if (car(p1) != symbol(MULTIPLY))
-    push(p1)
-    restore()
-    return
+// try all pairs of factors
+function yysimfac(h): boolean {
+  let p1: U, p2: U, p3: U;
 
-  # push all factors
+  for (let i = h; i < defs.tos; i++) {
+    p1 = defs.stack[i];
+    for (let j = h; j < defs.tos; j++) {
+      if (i === j) {
+        continue;
+      }
+      p2 = defs.stack[j];
 
-  h = tos
-  p1 = cdr(p1)
-  while (p1 != symbol(NIL))
-    push(car(p1))
-    p1 = cdr(p1)
+      //  n! / n    ->  (n - 1)!
+      if (
+        car(p1) === symbol(FACTORIAL) &&
+        car(p2) === symbol(POWER) &&
+        isminusone(caddr(p2)) &&
+        equal(cadr(p1), cadr(p2))
+      ) {
+        push(cadr(p1));
+        push(defs.one);
+        subtract();
+        factorial();
+        defs.stack[i] = pop();
+        defs.stack[j] = defs.one;
+        return true;
+      }
 
-  # keep trying until no more to do
+      //  n / n!    ->  1 / (n - 1)!
+      if (
+        car(p2) === symbol(POWER) &&
+        isminusone(caddr(p2)) &&
+        caadr(p2) === symbol(FACTORIAL) &&
+        equal(p1, cadadr(p2))
+      ) {
+        push(p1);
+        push_integer(-1);
+        add();
+        factorial();
+        reciprocate();
+        defs.stack[i] = pop();
+        defs.stack[j] = defs.one;
+        return true;
+      }
 
-  while (yysimfac(h))
-    doNothing = 1
+      //  (n + 1) n!  ->  (n + 1)!
+      if (car(p2) === symbol(FACTORIAL)) {
+        push(p1);
+        push(cadr(p2));
+        subtract();
+        p3 = pop();
+        if (isplusone(p3)) {
+          push(p1);
+          factorial();
+          defs.stack[i] = pop();
+          defs.stack[j] = defs.one;
+          return true;
+        }
+      }
 
-  multiply_all_noexpand(tos - h)
+      //  1 / ((n + 1) n!)  ->  1 / (n + 1)!
+      if (
+        car(p1) === symbol(POWER) &&
+        isminusone(caddr(p1)) &&
+        car(p2) === symbol(POWER) &&
+        isminusone(caddr(p2)) &&
+        caadr(p2) === symbol(FACTORIAL)
+      ) {
+        push(cadr(p1));
+        push(cadr(cadr(p2)));
+        subtract();
+        p3 = pop();
+        if (isplusone(p3)) {
+          push(cadr(p1));
+          factorial();
+          reciprocate();
+          defs.stack[i] = pop();
+          defs.stack[j] = defs.one;
+          return true;
+        }
+      }
 
-  restore()
+      //  (n + 1)! / n!  ->  n + 1
 
-# try all pairs of factors
-
-yysimfac = (h) ->
-  i = 0
-  j = 0
-
-  for i in [h...tos]
-    p1 = stack[i]
-    for j in [h...tos]
-      if (i == j)
-        continue
-      p2 = stack[j]
-
-      #  n! / n    ->  (n - 1)!
-
-      if (car(p1) == symbol(FACTORIAL)\
-      && car(p2) == symbol(POWER)\
-      && isminusone(caddr(p2))\
-      && equal(cadr(p1), cadr(p2)))
-        push(cadr(p1))
-        push(one)
-        subtract()
-        factorial()
-        stack[i] = pop()
-        stack[j] = one
-        return 1
-
-      #  n / n!    ->  1 / (n - 1)!
-
-      if (car(p2) == symbol(POWER)\
-      && isminusone(caddr(p2))\
-      && caadr(p2) == symbol(FACTORIAL)\
-      && equal(p1, cadadr(p2)))
-        push(p1)
-        push_integer(-1)
-        add()
-        factorial()
-        reciprocate()
-        stack[i] = pop()
-        stack[j] = one
-        return 1
-
-      #  (n + 1) n!  ->  (n + 1)!
-
-      if (car(p2) == symbol(FACTORIAL))
-        push(p1)
-        push(cadr(p2))
-        subtract()
-        p3 = pop()
-        if (isplusone(p3))
-          push(p1)
-          factorial()
-          stack[i] = pop()
-          stack[j] = one
-          return 1
-
-      #  1 / ((n + 1) n!)  ->  1 / (n + 1)!
-
-      if (car(p1) == symbol(POWER)\
-      && isminusone(caddr(p1))\
-      && car(p2) == symbol(POWER)\
-      && isminusone(caddr(p2))\
-      && caadr(p2) == symbol(FACTORIAL))
-        push(cadr(p1))
-        push(cadr(cadr(p2)))
-        subtract()
-        p3 = pop()
-        if (isplusone(p3))
-          push(cadr(p1))
-          factorial()
-          reciprocate()
-          stack[i] = pop()
-          stack[j] = one
-          return 1
-
-      #  (n + 1)! / n!  ->  n + 1
-
-      #  n! / (n + 1)!  ->  1 / (n + 1)
-
-      if (car(p1) == symbol(FACTORIAL)\
-      && car(p2) == symbol(POWER)\
-      && isminusone(caddr(p2))\
-      && caadr(p2) == symbol(FACTORIAL))
-        push(cadr(p1))
-        push(cadr(cadr(p2)))
-        subtract()
-        p3 = pop()
-        if (isplusone(p3))
-          stack[i] = cadr(p1)
-          stack[j] = one
-          return 1
-        if (isminusone(p3))
-          push(cadr(cadr(p2)))
-          reciprocate()
-          stack[i] = pop()
-          stack[j] = one
-          return 1
-        if (equaln(p3, 2))
-          stack[i] = cadr(p1)
-          push(cadr(p1))
-          push_integer(-1)
-          add()
-          stack[j] = pop()
-          return 1
-        if (equaln(p3, -2))
-          push(cadr(cadr(p2)))
-          reciprocate()
-          stack[i] = pop()
-          push(cadr(cadr(p2)))
-          push_integer(-1)
-          add()
-          reciprocate()
-          stack[j] = pop()
-          return 1
-  return 0
+      //  n! / (n + 1)!  ->  1 / (n + 1)
+      if (
+        car(p1) === symbol(FACTORIAL) &&
+        car(p2) === symbol(POWER) &&
+        isminusone(caddr(p2)) &&
+        caadr(p2) === symbol(FACTORIAL)
+      ) {
+        push(cadr(p1));
+        push(cadr(cadr(p2)));
+        subtract();
+        p3 = pop();
+        if (isplusone(p3)) {
+          defs.stack[i] = cadr(p1);
+          defs.stack[j] = defs.one;
+          return true;
+        }
+        if (isminusone(p3)) {
+          push(cadr(cadr(p2)));
+          reciprocate();
+          defs.stack[i] = pop();
+          defs.stack[j] = defs.one;
+          return true;
+        }
+        if (equaln(p3, 2)) {
+          defs.stack[i] = cadr(p1);
+          push(cadr(p1));
+          push_integer(-1);
+          add();
+          defs.stack[j] = pop();
+          return true;
+        }
+        if (equaln(p3, -2)) {
+          push(cadr(cadr(p2)));
+          reciprocate();
+          defs.stack[i] = pop();
+          push(cadr(cadr(p2)));
+          push_integer(-1);
+          add();
+          reciprocate();
+          defs.stack[j] = pop();
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}

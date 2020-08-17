@@ -1,20 +1,17 @@
-test_mpow = ->
-  logout("testing mpow\n")
+import { mint } from '../sources/bignum';
+import { mpow } from '../sources/mpow';
+import { test } from '../test-harness';
 
-
-  # small numbers
-
-  for i  in [-10...10]
-    a = mint(i)
-    x = 1
-    for j in [0...10]
-      b = mpow(a, j)
-      c = mint(x)
-      if (mcmp(b, c) != 0)
-        throw new Error("failed test_mpow")
-      x *= i
-
-
-  logout("ok\n")
-
-#endif
+// small numbers
+for (let i = -10; i < 10; i++) {
+  const a = mint(i);
+  let x = 1;
+  for (let j = 0; j < 10; j++) {
+    test(`${i}^${j}=${x}`, t => {
+      const b = mpow(a, j);
+      const c = mint(x);
+      t.is(c.toString(), b.toString());
+      x *= i;
+    });
+  }
+}

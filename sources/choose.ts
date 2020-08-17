@@ -1,4 +1,12 @@
-### choose =====================================================================
+import { caddr, cadr, defs, isNumericAtom, U } from '../runtime/defs';
+import { pop, push } from '../runtime/stack';
+import { lessp } from '../sources/misc';
+import { subtract } from './add';
+import { push_integer } from './bignum';
+import { Eval } from './eval';
+import { factorial } from './factorial';
+import { divide } from './multiply';
+/* choose =====================================================================
 
 Tags
 ----
@@ -20,57 +28,49 @@ For example, the number of five card hands is choose(52,5)
       choose(n,k) = -------------
                      k! (n - k)!
 ```
-###
+*/
+export function Eval_choose(p1: U) {
+  push(cadr(p1));
+  Eval();
+  push(caddr(p1));
+  Eval();
+  choose();
+}
 
+function choose() {
+  const K = pop();
+  const N = pop();
 
-Eval_choose = ->
-  push(cadr(p1))
-  Eval()
-  push(caddr(p1))
-  Eval()
-  choose()
+  if (!choose_check_args(N, K)) {
+    push_integer(0);
+    return;
+  }
 
-# Result vanishes for k < 0 or k > n. (A=B, p. 19)
+  push(N);
+  factorial();
 
-#define N p1
-#define K p2
+  push(K);
+  factorial();
 
-choose = ->
-  save()
+  divide();
 
-  p2 = pop()
-  p1 = pop()
+  push(N);
+  push(K);
+  subtract();
+  factorial();
 
-  if (choose_check_args() == 0)
-    push_integer(0)
-    restore()
-    return
+  divide();
+}
 
-  push(p1)
-  factorial()
-
-  push(p2)
-  factorial()
-
-  divide()
-
-  push(p1)
-  push(p2)
-  subtract()
-  factorial()
-
-  divide()
-
-  restore()
-
-choose_check_args = ->
-  if (isNumericAtom(p1) && lessp(p1, zero))
-    return 0
-  else if (isNumericAtom(p2) && lessp(p2, zero))
-    return 0
-  else if (isNumericAtom(p1) && isNumericAtom(p2) && lessp(p1, p2))
-    return 0
-  else
-    return 1
-
-
+// Result vanishes for k < 0 or k > n. (A=B, p. 19)
+function choose_check_args(N: U, K: U): boolean {
+  if (isNumericAtom(N) && lessp(N, defs.zero)) {
+    return false;
+  } else if (isNumericAtom(K) && lessp(K, defs.zero)) {
+    return false;
+  } else if (isNumericAtom(N) && isNumericAtom(K) && lessp(N, K)) {
+    return false;
+  } else {
+    return true;
+  }
+}

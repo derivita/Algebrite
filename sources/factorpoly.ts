@@ -1,117 +1,140 @@
-# Factor a polynomial
+import { lcm } from './lcm';
+import { DEBUG, defs, issymbol, U } from '../runtime/defs';
+import { Find } from '../runtime/find';
+import { stop } from '../runtime/run';
+import { moveTos, pop, push } from '../runtime/stack';
+import { equal } from '../sources/misc';
+import { add, subtract } from './add';
+import { push_integer, push_rational } from './bignum';
+import { coeff } from './coeff';
+import { yycondense } from './condense';
+import { conjugate } from './conj';
+import { denominator } from './denominator';
+import { divisors_onstack } from './divisors';
+import {
+  isfloating,
+  isnegativeterm,
+  ispolyexpandedform,
+  isZeroAtomOrTensor,
+} from './is';
+import {
+  divide,
+  multiply,
+  multiply_noexpand,
+  negate,
+  negate_noexpand,
+  reciprocate,
+} from './multiply';
+import { power } from './power';
+import { print_list } from './print';
+import { divpoly } from './quotient';
+import { rect } from './rect';
+// Factor a polynomial
 
+//define POLY p1
+//define X p2
+//define Z p3
+//define A p4
+//define B p5
+//define Q p6
+//define RESULT p7
+//define FACTOR p8
 
+let polycoeff = 0;
+let factpoly_expo = 0;
 
+export function factorpoly() {
+  const X = pop();
+  const POLY = pop();
 
-#define POLY p1
-#define X p2
-#define Z p3
-#define A p4
-#define B p5
-#define Q p6
-#define RESULT p7
-#define FACTOR p8
+  if (!Find(POLY, X)) {
+    push(POLY);
+    return;
+  }
 
-polycoeff = 0
-factpoly_expo = 0
+  if (!ispolyexpandedform(POLY, X)) {
+    push(POLY);
+    return;
+  }
 
-factorpoly = ->
-  save()
+  if (!issymbol(X)) {
+    push(POLY);
+    return;
+  }
 
-  p2 = pop()
-  p1 = pop()
+  push(POLY);
+  push(X);
+  yyfactorpoly();
+}
 
-  if (!Find(p1, p2))
-    push(p1)
-    restore()
-    return
+//-----------------------------------------------------------------------------
+//
+//  Input:    tos-2    true polynomial
+//
+//      tos-1    free variable
+//
+//  Output:    factored polynomial on stack
+//
+//-----------------------------------------------------------------------------
+function yyfactorpoly() {
+  let p7: U, p4: U, p5: U, p8: U;
+  let prev_expanding: number;
 
-  if (!ispoly(p1, p2))
-    push(p1)
-    restore()
-    return
+  const p2 = pop();
+  let p1 = pop();
 
-  if (!issymbol(p2))
-    push(p1)
-    restore()
-    return
+  const h = defs.tos;
 
-  push(p1)
-  push(p2)
-  yyfactorpoly()
+  if (isfloating(p1)) {
+    stop('floating point numbers in polynomial');
+  }
 
-  restore()
+  polycoeff = defs.tos;
 
-#-----------------------------------------------------------------------------
-#
-#  Input:    tos-2    true polynomial
-#
-#      tos-1    free variable
-#
-#  Output:    factored polynomial on stack
-#
-#-----------------------------------------------------------------------------
+  push(p1);
+  push(p2);
+  factpoly_expo = coeff() - 1;
 
-yyfactorpoly = ->
-  h = 0
-  i = 0
+  [p7] = rationalize_coefficients(h);
 
-  save()
+  // for univariate polynomials we could do factpoly_expo > 1
+  let whichRootsAreWeFinding = 'real';
+  let remainingPoly: U = null;
+  while (factpoly_expo > 0) {
+    var foundComplexRoot: boolean, foundRealRoot: boolean;
+    if (isZeroAtomOrTensor(defs.stack[polycoeff + 0])) {
+      push_integer(1);
+      p4 = pop();
+      push_integer(0);
+      p5 = pop();
+    } else {
+      //console.log("trying to find a " + whichRootsAreWeFinding + " root")
+      if (whichRootsAreWeFinding === 'real') {
+        [foundRealRoot, p4, p5] = get_factor_from_real_root(p2, p4, p5);
+      } else if (whichRootsAreWeFinding === 'complex') {
+        [foundComplexRoot, p4] = get_factor_from_complex_root(remainingPoly);
+      }
+    }
 
-  p2 = pop()
-  p1 = pop()
+    if (whichRootsAreWeFinding === 'real') {
+      if (foundRealRoot === false) {
+        whichRootsAreWeFinding = 'complex';
+        continue;
+      } else {
+        push(p4); // A
+        push(p2); // x
+        multiply();
+        push(p5); // B
+        add();
+        p8 = pop();
 
-  h = tos
+        if (DEBUG) {
+          console.log('success\nFACTOR=' + p8);
+        }
 
-  if (isfloating(p1))
-    stop("floating point numbers in polynomial")
-
-  polycoeff = tos
-
-  push(p1)
-  push(p2)
-  factpoly_expo = coeff() - 1
-
-  rationalize_coefficients(h)
-
-  # for univariate polynomials we could do factpoly_expo > 1
-
-  whichRootsAreWeFinding = "real"
-  remainingPoly = null
-  while (factpoly_expo > 0)
-
-    if (isZeroAtomOrTensor(stack[polycoeff+0]))
-      push_integer(1)
-      p4 = pop()
-      push_integer(0)
-      p5 = pop()
-    else
-      #console.log("trying to find a " + whichRootsAreWeFinding + " root")
-      if whichRootsAreWeFinding == "real"
-        foundRealRoot = get_factor_from_real_root()
-      else if whichRootsAreWeFinding == "complex"
-        foundComplexRoot = get_factor_from_complex_root(remainingPoly)
-
-    if whichRootsAreWeFinding == "real"
-      if foundRealRoot == 0
-        whichRootsAreWeFinding = "complex"
-        continue
-      else
-        # build the 1-degree polynomial out of the
-        # real solution that was just found.
-        push(p4) # A
-        push(p2) # x
-        multiply()
-        push(p5) # B
-        add()
-        p8 = pop()
-
-        if (DEBUG)
-          console.log("success\nFACTOR=" + p8)
-
-        # factor out negative sign (not req'd because p4 > 1)
-        #if 0
-        ###
+        // factor out negative sign (not req'd because p4 > 1)
+        //if 0
+        /*
         if (isnegativeterm(p4))
           push(p8)
           negate()
@@ -119,70 +142,74 @@ yyfactorpoly = ->
           push(p7)
           negate_noexpand()
           p7 = pop()
-        ###
-        #endif
-        
-        # p7 is the part of the polynomial that was factored so far,
-        # add the newly found factor to it. Note that we are not actually
-        # multiplying the polynomials fully, we are just leaving them
-        # expressed as (P1)*(P2), we are not expanding the product.
-        push(p7)
-        push(p8)
-        multiply_noexpand()
-        p7 = pop()
+        */
+        //endif
 
-        # ok now on stack we have the coefficients of the
-        # remaining part of the polynomial still to factor.
-        # Divide it by the newly-found factor so that
-        # the stack then contains the coefficients of the
-        # polynomial part still left to factor.
-        yydivpoly()
+        // p7 is the part of the polynomial that was factored so far,
+        // add the newly found factor to it. Note that we are not actually
+        // multiplying the polynomials fully, we are just leaving them
+        // expressed as (P1)*(P2), we are not expanding the product.
+        push(p7);
+        push(p8);
+        multiply_noexpand();
+        p7 = pop();
 
-        while (factpoly_expo and isZeroAtomOrTensor(stack[polycoeff+factpoly_expo]))
-          factpoly_expo--
+        // ok now on stack we have the coefficients of the
+        // remaining part of the polynomial still to factor.
+        // Divide it by the newly-found factor so that
+        // the stack then contains the coefficients of the
+        // polynomial part still left to factor.
+        yydivpoly(p4, p5);
 
-        push(zero)
-        for i in [0..factpoly_expo]
-          push(stack[polycoeff+i])
-          push(p2) # the free variable
-          push_integer(i)
-          power()
-          multiply()
-          add()
-        remainingPoly = pop()
-        #console.log("real branch remainingPoly: " + remainingPoly)
+        while (
+          factpoly_expo &&
+          isZeroAtomOrTensor(defs.stack[polycoeff + factpoly_expo])
+        ) {
+          factpoly_expo--;
+        }
 
-    else if whichRootsAreWeFinding == "complex"
-      if foundComplexRoot == 0
-        break
-      else
-        # build the 2-degree polynomial out of the
-        # real solution that was just found.
-        push(p4) # A
-        push(p2) # x
-        subtract()
-        #console.log("first factor: " + stack[tos-1].toString())
+        push(defs.zero);
+        for (let i = 0; i <= factpoly_expo; i++) {
+          push(defs.stack[polycoeff + i]);
+          push(p2); // the free variable
+          push_integer(i);
+          power();
+          multiply();
+          add();
+        }
+        remainingPoly = pop();
+      }
+      //console.log("real branch remainingPoly: " + remainingPoly)
+    } else if (whichRootsAreWeFinding === 'complex') {
+      if (foundComplexRoot === false) {
+        break;
+      } else {
+        push(p4); // A
+        push(p2); // x
+        subtract();
+        //console.log("first factor: " + stack[tos-1].toString())
 
-        push(p4) # A
-        conjugate()
-        push(p2) # x
-        subtract()
-        #console.log("second factor: " + stack[tos-1].toString())
+        push(p4); // A
+        conjugate();
+        push(p2); // x
+        subtract();
+        //console.log("second factor: " + stack[tos-1].toString())
 
-        multiply()
+        multiply();
 
-        #if (factpoly_expo > 0 && isnegativeterm(stack[polycoeff+factpoly_expo]))
-        #  negate()
-        #  negate_noexpand()
-          
-        p8 = pop()
+        //if (factpoly_expo > 0 && isnegativeterm(stack[polycoeff+factpoly_expo]))
+        //  negate()
+        //  negate_noexpand()
 
-        if (DEBUG)
-          console.log("success\nFACTOR=" + p8)
+        p8 = pop();
 
-        # factor out negative sign (not req'd because p4 > 1)
-        #if 0
-        ###
+        if (DEBUG) {
+          console.log('success\nFACTOR=' + p8);
+        }
+
+        // factor out negative sign (not req'd because p4 > 1)
+        //if 0
+        /*
         if (isnegativeterm(p4))
           push(p8)
           negate()
@@ -190,432 +217,480 @@ yyfactorpoly = ->
           push(p7)
           negate_noexpand()
           p7 = pop()
-        ###
-        #endif
-        
-        # p7 is the part of the polynomial that was factored so far,
-        # add the newly found factor to it. Note that we are not actually
-        # multiplying the polynomials fully, we are just leaving them
-        # expressed as (P1)*(P2), we are not expanding the product.
+        */
+        //endif
 
-        push(p7)
-        previousFactorisation = pop()
+        // p7 is the part of the polynomial that was factored so far,
+        // add the newly found factor to it. Note that we are not actually
+        // multiplying the polynomials fully, we are just leaving them
+        // expressed as (P1)*(P2), we are not expanding the product.
 
-        #console.log("previousFactorisation: " + previousFactorisation)
+        push(p7);
+        const previousFactorisation = pop();
 
-        push(p7)
-        push(p8)
-        multiply_noexpand()
-        p7 = pop()
+        //console.log("previousFactorisation: " + previousFactorisation)
 
-        #console.log("new prospective factorisation: " + p7)
+        push(p7);
+        push(p8);
+        multiply_noexpand();
+        p7 = pop();
 
+        //console.log("new prospective factorisation: " + p7)
 
-        # build the polynomial of the unfactored part
-        #console.log("build the polynomial of the unfactored part factpoly_expo: " + factpoly_expo)
-        
-        if !remainingPoly?
-          push(zero)
-          for i in [0..factpoly_expo]
-            push(stack[polycoeff+i])
-            push(p2) # the free variable
-            push_integer(i)
-            power()
-            multiply()
-            add()
-          remainingPoly = pop()
-        #console.log("original polynomial (dividend): " + remainingPoly)
+        // build the polynomial of the unfactored part
+        //console.log("build the polynomial of the unfactored part factpoly_expo: " + factpoly_expo)
 
-        dividend = remainingPoly
-        #push(dividend)
-        #degree()
-        #startingDegree = pop()
-        push(dividend)
+        if (remainingPoly == null) {
+          push(defs.zero);
+          for (let i = 0; i <= factpoly_expo; i++) {
+            push(defs.stack[polycoeff + i]);
+            push(p2); // the free variable
+            push_integer(i);
+            power();
+            multiply();
+            add();
+          }
+          remainingPoly = pop();
+        }
+        //console.log("original polynomial (dividend): " + remainingPoly)
 
-        #console.log("dividing " + stack[tos-1].toString() + " by " + p8)
-        push(p8) # divisor
-        push(p2) # X
-        divpoly()
-        remainingPoly = pop()
+        const dividend = remainingPoly;
+        //push(dividend)
+        //degree()
+        //startingDegree = pop()
+        push(dividend);
 
-        push(remainingPoly)
-        push(p8) # divisor
-        multiply()
-        checkingTheDivision = pop()
+        //console.log("dividing " + stack[tos-1].toString() + " by " + p8)
+        push(p8); // divisor
+        push(p2); // X
+        divpoly();
+        remainingPoly = pop();
 
-        if !equal(checkingTheDivision, dividend)
+        push(remainingPoly);
+        push(p8); // divisor
+        multiply();
+        const checkingTheDivision = pop();
 
-          #push(dividend)
-          #gcd_expr()
-          #console.log("gcd top of stack: " + stack[tos-1].toString())
+        if (!equal(checkingTheDivision, dividend)) {
+          //push(dividend)
+          //gcd_sum()
+          //console.log("gcd top of stack: " + stack[tos-1].toString())
 
+          if (DEBUG) {
+            console.log(
+              "we found a polynomial based on complex root and its conj but it doesn't divide the poly, quitting"
+            );
+          }
+          if (DEBUG) {
+            console.log(
+              'so just returning previousFactorisation times dividend: ' +
+                previousFactorisation +
+                ' * ' +
+                dividend
+            );
+          }
+          push(previousFactorisation);
+          push(dividend);
 
-          if DEBUG then console.log("we found a polynomial based on complex root and its conj but it doesn't divide the poly, quitting")
-          if DEBUG then console.log("so just returning previousFactorisation times dividend: " + previousFactorisation + " * " + dividend)
-          push(previousFactorisation)
-          push(dividend)
+          prev_expanding = defs.expanding;
+          defs.expanding = 0;
+          yycondense();
+          defs.expanding = prev_expanding;
 
-          prev_expanding = expanding
-          expanding = 0
-          yycondense()
-          expanding = prev_expanding
+          multiply_noexpand();
+          p7 = pop();
+          defs.stack[h] = p7;
+          moveTos(h + 1);
+          return;
+        }
 
-          multiply_noexpand()
-          p7 = pop()
-          stack[h] = p7
-          moveTos h + 1
-          restore()
-          return
+        //console.log("result: (still to be factored) " + remainingPoly)
 
-        #console.log("result: (still to be factored) " + remainingPoly)
+        //push(remainingPoly)
+        //degree()
+        //remainingDegree = pop()
 
-        #push(remainingPoly)
-        #degree()
-        #remainingDegree = pop()
-
-        ###
+        /*
         if compare_numbers(startingDegree, remainingDegree)
-          # ok even if we found a complex root that
-          # together with the conjugate generates a poly in Z,
-          # that doesn't mean that the division would end up in Z.
-          # Example: 1+x^2+x^4+x^6 has +i and -i as one of its roots
-          # so a factor is 1+x^2 ( = (x+i)*(x-i))
-          # BUT 
-        ###
-
-
-        for i in [0..factpoly_expo]
-          pop()
-
-        push(remainingPoly)
-        push(p2)
-        coeff()
-
-
-        factpoly_expo -= 2
-        #console.log("factpoly_expo: " + factpoly_expo)
-
-
-  # build the remaining unfactored part of the polynomial
-
-  push(zero)
-  for i in [0..factpoly_expo]
-    push(stack[polycoeff+i])
-    push(p2) # the free variable
-    push_integer(i)
-    power()
-    multiply()
-    add()
-  p1 = pop()
-
-  if (DEBUG)
-    console.log("POLY=" + p1)
-
-  push(p1)
-
-  prev_expanding = expanding
-  expanding = 0
-  yycondense()
-  expanding = prev_expanding
-
-  p1 = pop()
-  #console.log("new poly with extracted common factor: " + p1)
-  #debugger
-
-  # factor out negative sign
-
-  if (factpoly_expo > 0 && isnegativeterm(stack[polycoeff+factpoly_expo]))
-    push(p1)
-    #prev_expanding = expanding
-    #expanding = 1
-    negate()
-    #expanding = prev_expanding
-    p1 = pop()
-    push(p7)
-    negate_noexpand()
-    p7 = pop()
-
-  push(p7)
-  push(p1)
-  multiply_noexpand()
-  p7 = pop()
-
-  if (DEBUG)
-    console.log("RESULT=" + p7)
-
-  stack[h] = p7
-
-  moveTos h + 1
-
-  restore()
-
-rationalize_coefficients = (h) ->
-  i = 0
-
-  # LCM of all polynomial coefficients
-
-  p7 = one
-  for i in [h...tos]
-    push(stack[i])
-    denominator()
-    push(p7)
-    lcm()
-    p7 = pop()
-
-  # multiply each coefficient by RESULT
-
-  for i in [h...tos]
-    push(p7)
-    push(stack[i])
-    multiply()
-    stack[i] = pop()
-
-  # reciprocate RESULT
-
-  push(p7)
-  reciprocate()
-  p7 = pop()
-  if DEBUG then console.log("rationalize_coefficients result")
-  #console.log print_list(p7)
-
-get_factor_from_real_root = ->
-
-  i = 0
-  j = 0
-  h = 0
-  a0 = 0
-  an = 0
-  na0 = 0
-  nan = 0
-
-  if (DEBUG)
-    push(zero)
-    for i in [0..factpoly_expo]
-      push(stack[polycoeff+i])
-      push(p2)
-      push_integer(i)
-      power()
-      multiply()
-      add()
-    p1 = pop()
-    console.log("POLY=" + p1)
-
-  h = tos
-
-  an = tos
-  push(stack[polycoeff+factpoly_expo])
-
-  divisors_onstack()
-
-  nan = tos - an
-
-  a0 = tos
-  push(stack[polycoeff+0])
-  divisors_onstack()
-  na0 = tos - a0
-
-  if (DEBUG)
-    console.log("divisors of base term")
-    for i in [0...na0]
-      console.log(", " + stack[a0 + i])
-    console.log("divisors of leading term")
-    for i in [0...nan]
-      console.log(", " + stack[an + i])
-
-  # try roots
-
-  for rootsTries_i in [0...nan]
-    for rootsTries_j in [0...na0]
-
-      #if DEBUG then console.log "nan: " + nan + " na0: " + na0 + " i: " + rootsTries_i + " j: " + rootsTries_j
-
-      p4 = stack[an + rootsTries_i]
-      p5 = stack[a0 + rootsTries_j]
-
-      push(p5)
-      push(p4)
-      divide()
-      negate()
-      p3 = pop()
-
-      Evalpoly()
-
-      if (DEBUG)
-        console.log("try A=" + p4)
-        console.log(", B=" + p5)
-        console.log(", root " + p2)
-        console.log("=-B/A=" + p3)
-        console.log(", POLY(" + p3)
-        console.log(")=" + p6)
-
-      if (isZeroAtomOrTensor(p6))
-        moveTos h
-        if DEBUG then console.log "get_factor_from_real_root returning 1"
-        return 1
-
-      push(p5)
-      negate()
-      p5 = pop()
-
-      push(p3)
-      negate()
-      p3 = pop()
-
-      Evalpoly()
-
-      if (DEBUG)
-        console.log("try A=" + p4)
-        console.log(", B=" + p5)
-        console.log(", root " + p2)
-        console.log("=-B/A=" + p3)
-        console.log(", POLY(" + p3)
-        console.log(")=" + p6)
-
-      if (isZeroAtomOrTensor(p6))
-        moveTos h
-        if DEBUG then console.log "get_factor_from_real_root returning 1"
-        return 1
-
-  moveTos h
-
-  if DEBUG then console.log "get_factor_from_real_root returning 0"
-  return 0
-
-get_factor_from_complex_root = (remainingPoly) ->
-
-  i = 0
-  j = 0
-  h = 0
-  a0 = 0
-  an = 0
-  na0 = 0
-  nan = 0
-
-  if factpoly_expo <= 2
-    if DEBUG then console.log("no more factoring via complex roots to be found in polynomial of degree <= 2")
-    return 0
-
-  p1 = remainingPoly
-  if DEBUG then console.log("complex root finding for POLY=" + p1)
-
-  h = tos
-  an = tos
-
-  # trying -1^(2/3) which generates a polynomial in Z
-  # generates x^2 + 2x + 1
-  push_integer(-1)
-  push_rational(2,3)
-  power()
-  rect()
-  p4 = pop()
-  if DEBUG then console.log("complex root finding: trying with " + p4)
-  push(p4)
-  p3 = pop()
-  push(p3)
-  Evalpoly()
-  if DEBUG then console.log("complex root finding result: " + p6)
-  if (isZeroAtomOrTensor(p6))
-    moveTos h
-    if DEBUG then console.log "get_factor_from_complex_root returning 1"
-    return 1
-
-  # trying 1^(2/3) which generates a polynomial in Z
-  # http://www.wolframalpha.com/input/?i=(1)%5E(2%2F3)
-  # generates x^2 - 2x + 1
-  push_integer(1)
-  push_rational(2,3)
-  power()
-  rect()
-  p4 = pop()
-  if DEBUG then console.log("complex root finding: trying with " + p4)
-  push(p4)
-  p3 = pop()
-  push(p3)
-  Evalpoly()
-  if DEBUG then console.log("complex root finding result: " + p6)
-  if (isZeroAtomOrTensor(p6))
-    moveTos h
-    if DEBUG then console.log "get_factor_from_complex_root returning 1"
-    return 1
-
-
-  # trying some simple complex numbers. All of these
-  # generate polynomials in Z
-  for rootsTries_i in [-10..10]
-    for rootsTries_j in [1..5]
-      push_integer(rootsTries_i)
-      push_integer(rootsTries_j)
-      push(imaginaryunit)
-      multiply()
-      add()
-      rect()
-      p4 = pop()
-      #console.log("complex root finding: trying simple complex combination: " + p4)
-
-      push(p4)
-      p3 = pop()
-
-
-      push(p3)
-
-      Evalpoly()
-
-      #console.log("complex root finding result: " + p6)
-      if (isZeroAtomOrTensor(p6))
-        moveTos h
-        if DEBUG then console.log "found complex root: " + p6
-        return 1
-
-  moveTos h
-
-  if DEBUG then console.log "get_factor_from_complex_root returning 0"
-  return 0
-
-#-----------------------------------------------------------------------------
-#
-#  Divide a polynomial by Ax+B
-#
-#  Input:  on stack:  polycoeff  Dividend coefficients
-#
-#      factpoly_expo    Degree of dividend
-#
-#      A (p4)    As above
-#
-#      B (p5)    As above
-#
-#  Output:   on stack: polycoeff  Contains quotient coefficients
-#
-#-----------------------------------------------------------------------------
-
-yydivpoly = ->
-  i = 0
-  p6 = zero
-  for i in [factpoly_expo...0]
-    push(stack[polycoeff+i])
-    stack[polycoeff+i] = p6
-    push(p4)
-    divide()
-    p6 = pop()
-    push(stack[polycoeff+i - 1])
-    push(p6)
-    push(p5)
-    multiply()
-    subtract()
-    stack[polycoeff+i - 1] = pop()
-  stack[polycoeff+0] = p6
-  if DEBUG then console.log("yydivpoly Q:")
-  #console.log print_list(p6)
-
-Evalpoly = ->
-  i = 0
-  push(zero)
-  for i in [factpoly_expo..0]
-    push(p3)
-    multiply()
-    push(stack[polycoeff+i])
-    if DEBUG
-      console.log("Evalpoly top of stack:")
-      console.log print_list(stack[tos-i])
-    add()
-  p6 = pop()
-
+          * ok even if we found a complex root that
+          * together with the conjugate generates a poly in Z,
+          * that doesn't mean that the division would end up in Z.
+          * Example: 1+x^2+x^4+x^6 has +i and -i as one of its roots
+          * so a factor is 1+x^2 ( = (x+i)*(x-i))
+          * BUT 
+        */
+        for (let i = 0; i <= factpoly_expo; i++) {
+          pop();
+        }
+
+        push(remainingPoly);
+        push(p2);
+        coeff();
+
+        factpoly_expo -= 2;
+      }
+    }
+  }
+  //console.log("factpoly_expo: " + factpoly_expo)
+
+  // build the remaining unfactored part of the polynomial
+
+  push(defs.zero);
+  for (let i = 0; i <= factpoly_expo; i++) {
+    push(defs.stack[polycoeff + i]);
+    push(p2); // the free variable
+    push_integer(i);
+    power();
+    multiply();
+    add();
+  }
+  p1 = pop();
+
+  if (DEBUG) {
+    console.log('POLY=' + p1);
+  }
+
+  push(p1);
+
+  prev_expanding = defs.expanding;
+  defs.expanding = 0;
+  yycondense();
+  defs.expanding = prev_expanding;
+
+  p1 = pop();
+  //console.log("new poly with extracted common factor: " + p1)
+  //debugger
+
+  // factor out negative sign
+
+  if (
+    factpoly_expo > 0 &&
+    isnegativeterm(defs.stack[polycoeff + factpoly_expo])
+  ) {
+    push(p1);
+    //prev_expanding = expanding
+    //expanding = 1
+    negate();
+    //expanding = prev_expanding
+    p1 = pop();
+    push(p7);
+    negate_noexpand();
+    p7 = pop();
+  }
+
+  push(p7);
+  push(p1);
+  multiply_noexpand();
+  p7 = pop();
+
+  if (DEBUG) {
+    console.log('RESULT=' + p7);
+  }
+
+  defs.stack[h] = p7;
+
+  moveTos(h + 1);
+}
+
+function rationalize_coefficients(h: number): [U] {
+  // LCM of all polynomial coefficients
+  let p7: U = defs.one;
+  for (let i = h; i < defs.tos; i++) {
+    push(defs.stack[i]);
+    denominator();
+    push(p7);
+    lcm();
+    p7 = pop();
+  }
+
+  // multiply each coefficient by RESULT
+  for (let i = h; i < defs.tos; i++) {
+    push(p7);
+    push(defs.stack[i]);
+    multiply();
+    defs.stack[i] = pop();
+  }
+
+  // reciprocate RESULT
+  push(p7);
+  reciprocate();
+  p7 = pop();
+  if (DEBUG) {
+    console.log('rationalize_coefficients result');
+  }
+  return [p7];
+}
+//console.log print_list(p7)
+
+function get_factor_from_real_root(p2: U, p4: U, p5: U): [boolean, U, U] {
+  let p1: U, p3: U, p6: U;
+
+  if (DEBUG) {
+    push(defs.zero);
+    for (let i = 0; i <= factpoly_expo; i++) {
+      push(defs.stack[polycoeff + i]);
+      push(p2);
+      push_integer(i);
+      power();
+      multiply();
+      add();
+    }
+    p1 = pop();
+    console.log('POLY=' + p1);
+  }
+
+  const h = defs.tos;
+
+  const an = defs.tos;
+  push(defs.stack[polycoeff + factpoly_expo]);
+
+  divisors_onstack();
+
+  const nan = defs.tos - an;
+
+  const a0 = defs.tos;
+  push(defs.stack[polycoeff + 0]);
+  divisors_onstack();
+  const na0 = defs.tos - a0;
+
+  if (DEBUG) {
+    console.log('divisors of base term');
+    for (let i = 0; i < na0; i++) {
+      console.log(', ' + defs.stack[a0 + i]);
+    }
+    console.log('divisors of leading term');
+    for (let i = 0; i < nan; i++) {
+      console.log(', ' + defs.stack[an + i]);
+    }
+  }
+
+  // try roots
+  for (let rootsTries_i = 0; rootsTries_i < nan; rootsTries_i++) {
+    for (let rootsTries_j = 0; rootsTries_j < na0; rootsTries_j++) {
+      //if DEBUG then console.log "nan: " + nan + " na0: " + na0 + " i: " + rootsTries_i + " j: " + rootsTries_j
+      p4 = defs.stack[an + rootsTries_i];
+      p5 = defs.stack[a0 + rootsTries_j];
+
+      push(p5);
+      push(p4);
+      divide();
+      negate();
+      p3 = pop();
+
+      [p6] = Evalpoly(p3);
+
+      if (DEBUG) {
+        console.log('try A=' + p4);
+        console.log(', B=' + p5);
+        console.log(', root ' + p2);
+        console.log('=-B/A=' + p3);
+        console.log(', POLY(' + p3);
+        console.log(')=' + p6);
+      }
+
+      if (isZeroAtomOrTensor(p6)) {
+        moveTos(h);
+        if (DEBUG) {
+          console.log('get_factor_from_real_root returning true');
+        }
+        return [true, p4, p5];
+      }
+
+      push(p5);
+      negate();
+      p5 = pop();
+
+      push(p3);
+      negate();
+      p3 = pop();
+
+      [p6] = Evalpoly(p3);
+
+      if (DEBUG) {
+        console.log('try A=' + p4);
+        console.log(', B=' + p5);
+        console.log(', root ' + p2);
+        console.log('=-B/A=' + p3);
+        console.log(', POLY(' + p3);
+        console.log(')=' + p6);
+      }
+
+      if (isZeroAtomOrTensor(p6)) {
+        moveTos(h);
+        if (DEBUG) {
+          console.log('get_factor_from_real_root returning true');
+        }
+        return [true, p4, p5];
+      }
+    }
+  }
+
+  moveTos(h);
+
+  if (DEBUG) {
+    console.log('get_factor_from_real_root returning false');
+  }
+  return [false, p4, p5];
+}
+
+function get_factor_from_complex_root(remainingPoly: U): [boolean, U] {
+  let p1: U, p4: U, p3: U, p6: U;
+
+  if (factpoly_expo <= 2) {
+    if (DEBUG) {
+      console.log(
+        'no more factoring via complex roots to be found in polynomial of degree <= 2'
+      );
+    }
+    return [false, p4];
+  }
+
+  p1 = remainingPoly;
+  if (DEBUG) {
+    console.log('complex root finding for POLY=' + p1);
+  }
+
+  const h = defs.tos;
+
+  // trying -1^(2/3) which generates a polynomial in Z
+  // generates x^2 + 2x + 1
+  push_integer(-1);
+  push_rational(2, 3);
+  power();
+  rect();
+  p4 = pop();
+  if (DEBUG) {
+    console.log('complex root finding: trying with ' + p4);
+  }
+  push(p4);
+  p3 = pop();
+  push(p3);
+  [p6] = Evalpoly(p3);
+  if (DEBUG) {
+    console.log('complex root finding result: ' + p6);
+  }
+  if (isZeroAtomOrTensor(p6)) {
+    moveTos(h);
+    if (DEBUG) {
+      console.log('get_factor_from_complex_root returning true');
+    }
+    return [true, p4];
+  }
+
+  // trying 1^(2/3) which generates a polynomial in Z
+  // http://www.wolframalpha.com/input/?i=(1)%5E(2%2F3)
+  // generates x^2 - 2x + 1
+  push_integer(1);
+  push_rational(2, 3);
+  power();
+  rect();
+  p4 = pop();
+  if (DEBUG) {
+    console.log('complex root finding: trying with ' + p4);
+  }
+  push(p4);
+  p3 = pop();
+  push(p3);
+  [p6] = Evalpoly(p3);
+  if (DEBUG) {
+    console.log('complex root finding result: ' + p6);
+  }
+  if (isZeroAtomOrTensor(p6)) {
+    moveTos(h);
+    if (DEBUG) {
+      console.log('get_factor_from_complex_root returning true');
+    }
+    return [true, p4];
+  }
+
+  // trying some simple complex numbers. All of these
+  // generate polynomials in Z
+  for (let rootsTries_i = -10; rootsTries_i <= 10; rootsTries_i++) {
+    for (let rootsTries_j = 1; rootsTries_j <= 5; rootsTries_j++) {
+      push_integer(rootsTries_i);
+      push_integer(rootsTries_j);
+      push(defs.imaginaryunit);
+      multiply();
+      add();
+      rect();
+      p4 = pop();
+      //console.log("complex root finding: trying simple complex combination: " + p4)
+
+      push(p4);
+      const p3 = pop();
+
+      push(p3);
+
+      const [p6] = Evalpoly(p3);
+
+      //console.log("complex root finding result: " + p6)
+      if (isZeroAtomOrTensor(p6)) {
+        moveTos(h);
+        if (DEBUG) {
+          console.log('found complex root: ' + p6);
+        }
+        return [true, p4];
+      }
+    }
+  }
+
+  moveTos(h);
+
+  if (DEBUG) {
+    console.log('get_factor_from_complex_root returning false');
+  }
+  return [false, p4];
+}
+
+//-----------------------------------------------------------------------------
+//
+//  Divide a polynomial by Ax+B
+//
+//  Input:  on stack:  polycoeff  Dividend coefficients
+//
+//      factpoly_expo    Degree of dividend
+//
+//      A (p4)    As above
+//
+//      B (p5)    As above
+//
+//  Output:   on stack: polycoeff  Contains quotient coefficients
+//
+//-----------------------------------------------------------------------------
+function yydivpoly(p4: U, p5: U) {
+  let p6: U = defs.zero;
+  for (let i = factpoly_expo; i > 0; i--) {
+    push(defs.stack[polycoeff + i]);
+    defs.stack[polycoeff + i] = p6;
+    push(p4);
+    divide();
+    p6 = pop();
+    push(defs.stack[polycoeff + i - 1]);
+    push(p6);
+    push(p5);
+    multiply();
+    subtract();
+    defs.stack[polycoeff + i - 1] = pop();
+  }
+  defs.stack[polycoeff + 0] = p6;
+  if (DEBUG) {
+    console.log('yydivpoly Q:');
+  }
+}
+//console.log print_list(p6)
+
+function Evalpoly(p3: U): [U] {
+  push(defs.zero);
+  for (let i = factpoly_expo; i >= 0; i--) {
+    push(p3);
+    multiply();
+    push(defs.stack[polycoeff + i]);
+    if (DEBUG) {
+      console.log('Evalpoly top of stack:');
+      console.log(print_list(defs.stack[defs.tos - i]));
+    }
+    add();
+  }
+  const p6 = pop();
+  return [p6];
+}

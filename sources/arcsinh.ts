@@ -1,4 +1,20 @@
-### arcsinh =====================================================================
+import {
+  ARCSINH,
+  cadr,
+  car,
+  defs,
+  isdouble,
+  SINH,
+  symbol,
+  U,
+} from '../runtime/defs';
+import { pop, push } from '../runtime/stack';
+import { push_symbol } from '../runtime/symbol';
+import { push_double } from './bignum';
+import { Eval } from './eval';
+import { isZeroAtomOrTensor } from './is';
+import { list } from './list';
+/* arcsinh =====================================================================
 
 Tags
 ----
@@ -12,37 +28,34 @@ General description
 -------------------
 Returns the inverse hyperbolic sine of x.
 
-###
+*/
+export function Eval_arcsinh(x: U) {
+  push(cadr(x));
+  Eval();
+  arcsinh();
+}
 
-Eval_arcsinh = ->
-  push(cadr(p1))
-  Eval()
-  arcsinh()
+function arcsinh() {
+  let d = 0.0;
+  let x: U = pop();
+  if (car(x) === symbol(SINH)) {
+    push(cadr(x));
+    return;
+  }
 
-arcsinh = ->
-  d = 0.0
-  save()
-  p1 = pop()
-  if (car(p1) == symbol(SINH))
-    push(cadr(p1))
-    restore()
-    return
+  if (isdouble(x)) {
+    ({ d } = x);
+    d = Math.log(d + Math.sqrt(d * d + 1.0));
+    push_double(d);
+    return;
+  }
 
-  if (isdouble(p1))
-    d = p1.d
-    d = Math.log(d + Math.sqrt(d * d + 1.0))
-    push_double(d)
-    restore()
-    return
+  if (isZeroAtomOrTensor(x)) {
+    push(defs.zero);
+    return;
+  }
 
-  if (isZeroAtomOrTensor(p1))
-    push(zero)
-    restore()
-    return
-
-  push_symbol(ARCSINH)
-  push(p1)
-  list(2)
-  restore()
-
-
+  push_symbol(ARCSINH);
+  push(x);
+  list(2);
+}

@@ -1,76 +1,107 @@
-# returns 1 if expr p contains expr q, otherweise returns 0
+import { equaln, isimaginaryunit, isinteger } from '../sources/is';
+import { equal } from '../sources/misc';
+import {
+  caddr,
+  cadr,
+  car,
+  cdr,
+  defs,
+  E,
+  iscons,
+  istensor,
+  POWER,
+  symbol,
+  U,
+} from './defs';
 
+// returns true if expr p contains expr q, otherwise returns false
+export function Find(p: U, q: U): boolean {
+  if (equal(p, q)) {
+    return true;
+  }
 
+  if (istensor(p)) {
+    for (let i = 0; i < p.tensor.nelem; i++) {
+      if (Find(p.tensor.elem[i], q)) {
+        return true;
+      }
+    }
+    return false;
+  }
 
-Find = (p, q) ->
+  while (iscons(p)) {
+    if (Find(car(p), q)) {
+      return true;
+    }
+    p = cdr(p);
+  }
 
-  i = 0
-  if (equal(p, q))
-    return 1
+  return false;
+}
 
-  if (istensor(p))
-    for i in [0...p.tensor.nelem]
-      if (Find(p.tensor.elem[i], q))
-        return 1
-    return 0
+// find stuff like (-1)^(something (but disregard
+// imaginary units which are in the form (-1)^(1/2))
+export function findPossibleClockForm(p: U, p1: U): boolean {
+  if (isimaginaryunit(p)) {
+    return false;
+  }
 
-  while (iscons(p))
-    if (Find(car(p), q))
-      return 1
-    p = cdr(p)
+  if (car(p) === symbol(POWER) && !isinteger(caddr(p1))) {
+    if (Find(cadr(p), defs.imaginaryunit)) {
+      //console.log "found i^fraction " + p
+      return true;
+    }
+  }
 
-  return 0
+  if (
+    car(p) === symbol(POWER) &&
+    equaln(cadr(p), -1) &&
+    !isinteger(caddr(p1))
+  ) {
+    //console.log "found -1^fraction in " + p
+    return true;
+  }
 
-# find stuff like (-1)^(something (but disregard
-# imaginary units which are in the form (-1)^(1/2))
-findPossibleClockForm = (p) ->
+  if (istensor(p)) {
+    for (let i = 0; i < p.tensor.nelem; i++) {
+      if (findPossibleClockForm(p.tensor.elem[i], p1)) {
+        return true;
+      }
+    }
+    return false;
+  }
 
-  i = 0
+  while (iscons(p)) {
+    if (findPossibleClockForm(car(p), p1)) {
+      return true;
+    }
+    p = cdr(p);
+  }
 
-  if isimaginaryunit(p)
-    return 0
+  return false;
+}
 
-  if (car(p) == symbol(POWER) and !isinteger(caddr(p1)))
-    if Find(cadr(p), imaginaryunit)
-      #console.log "found i^fraction " + p
-      return 1
+// find stuff like (e)^(i something)
+export function findPossibleExponentialForm(p: U): boolean {
+  if (car(p) === symbol(POWER) && cadr(p) === symbol(E)) {
+    return Find(caddr(p), defs.imaginaryunit);
+  }
 
-  if (car(p) == symbol(POWER) && equaln(cadr(p), -1) && !isinteger(caddr(p1)))
-    #console.log "found -1^fraction in " + p
-    return 1
+  if (istensor(p)) {
+    for (let i = 0; i < p.tensor.nelem; i++) {
+      if (findPossibleExponentialForm(p.tensor.elem[i])) {
+        return true;
+      }
+    }
+    return false;
+  }
 
-  if (istensor(p))
-    for i in [0...p.tensor.nelem]
-      if (findPossibleClockForm(p.tensor.elem[i]))
-        return 1
-    return 0
+  while (iscons(p)) {
+    if (findPossibleExponentialForm(car(p))) {
+      return true;
+    }
+    p = cdr(p);
+  }
 
-  while (iscons(p))
-    if (findPossibleClockForm(car(p)))
-      return 1
-    p = cdr(p)
-
-  return 0
-
-# find stuff like (e)^(i something)
-findPossibleExponentialForm = (p) ->
-
-  i = 0
-
-  if car(p) == symbol(POWER) && cadr(p)== symbol(E)
-    return Find(caddr(p),imaginaryunit)
-
-  if (istensor(p))
-    for i in [0...p.tensor.nelem]
-      if (findPossibleExponentialForm(p.tensor.elem[i]))
-        return 1
-    return 0
-
-  while (iscons(p))
-    if (findPossibleExponentialForm(car(p)))
-      return 1
-    p = cdr(p)
-
-  return 0
-
-$.Find = Find
+  return false;
+}

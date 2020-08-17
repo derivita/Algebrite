@@ -1,34 +1,35 @@
-test_quickfactor = ->
-  i = 0
-  logout("testing quickfactor\n")
-  for i in [2...10001]
-    if i % 1000 == 0
-      console.log i
-    base = i
-    push_integer(base)
-    push_integer(1)
-    quickfactor()
-    h = tos
-    j = 0
-    while (base > 1)
-      expo = 0
-      while (base % primetab[j] == 0)
-        base /= primetab[j]
-        expo++
-      if (expo)
-        push_integer(primetab[j])
-        push_integer(expo)
-        quickpower()
-      j++
-    multiply_all(tos - h)
-    p2 = pop()
-    p1 = pop()
-    if (!equal(p1, p2))
-      logout("failed\n")
-      print_lisp(p1)
-      print_lisp(p2)
-      errout()
-  console.log "quickfactor is ok"
-  logout("ok\n")
+import { equal } from '../sources/misc';
+import { defs, primetab } from '../runtime/defs';
+import { pop } from '../runtime/stack';
+import { push_integer } from '../sources/bignum';
+import { multiply_all } from '../sources/multiply';
+import { quickfactor, quickpower } from '../sources/quickfactor';
+import { test } from '../test-harness';
 
-#endif
+test('quickfactor', t => {
+  for (let i = 2; i < 10001; i++) {
+    let base = i;
+    push_integer(base);
+    push_integer(1);
+    quickfactor();
+    const h = defs.tos;
+    let j = 0;
+    while (base > 1) {
+      let expo = 0;
+      while (base % primetab[j] === 0) {
+        base /= primetab[j];
+        expo++;
+      }
+      if (expo) {
+        push_integer(primetab[j]);
+        push_integer(expo);
+        quickpower();
+      }
+      j++;
+    }
+    multiply_all(defs.tos - h);
+    defs.p2 = pop();
+    defs.p1 = pop();
+    t.is(true, equal(defs.p1, defs.p2), `${defs.p1} != ${defs.p2}`);
+  }
+});

@@ -1,19 +1,20 @@
-test_mprime = ->
-  i = 0
-  k = 0
-  m = 0
-  t = 0
-  logout("test mprime\n")
-  k = 0
-  for i in [0...10000]
-    n = mint(i)
-    t = mprime(n)
-    if (i == primetab[k])
-      if (t == 0)
-        throw new Error("failed for prime number " + i)
-      k++
-    else if (t == 1)
-      throw new Error("failed for composite number " + i)
-  logout("ok\n")
+import { primetab } from '../runtime/defs';
+import { mint } from '../sources/bignum';
+import { mprime } from '../sources/mprime';
+import { test } from '../test-harness';
 
-#endif
+let i = 0;
+let k = 0;
+const m = 0;
+let t = 0;
+k = 0;
+for (i = 0; i < 10000; i++) {
+  const n = mint(i);
+  let expectPrime = i === primetab[k];
+  if (expectPrime) {
+    k++;
+  }
+  test(`mprime(${i}) = ${expectPrime}`, t => t.is(expectPrime, mprime(n)));
+}
+
+//endif

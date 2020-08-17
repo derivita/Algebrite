@@ -1,4 +1,10 @@
-### adj =====================================================================
+import { alloc_tensor } from '../runtime/alloc';
+import { cadr, istensor, U } from '../runtime/defs';
+import { stop } from '../runtime/run';
+import { pop, push } from '../runtime/stack';
+import { cofactor } from './cofactor';
+import { Eval } from './eval';
+/* adj =====================================================================
 
 Tags
 ----
@@ -12,43 +18,40 @@ General description
 -------------------
 Returns the adjunct of matrix m. The inverse of m is equal to adj(m) divided by det(m).
 
-###
+*/
+export function Eval_adj(p1: U) {
+  push(cadr(p1));
+  Eval();
+  adj();
+}
 
+export function adj() {
+  const p1 = pop();
 
-Eval_adj = ->
-  push(cadr(p1))
-  Eval()
-  adj()
+  if (
+    istensor(p1) &&
+    p1.tensor.ndim === 2 &&
+    p1.tensor.dim[0] === p1.tensor.dim[1]
+  ) {
+    // do nothing
+  } else {
+    stop('adj: square matrix expected');
+  }
 
-adj = ->
-  i = 0
-  j = 0
-  n = 0
+  const n = p1.tensor.dim[0];
 
-  save()
+  const p2 = alloc_tensor(n * n);
 
-  p1 = pop()
+  p2.tensor.ndim = 2;
+  p2.tensor.dim[0] = n;
+  p2.tensor.dim[1] = n;
 
-  if (istensor(p1) && p1.tensor.ndim == 2 && p1.tensor.dim[0] == p1.tensor.dim[1])
-    doNothing = 1
-  else
-    stop("adj: square matrix expected")
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      cofactor(p1, n, i, j);
+      p2.tensor.elem[n * j + i] = pop();
+    }
+  } // transpose
 
-  n = p1.tensor.dim[0]
-
-  p2 = alloc_tensor(n * n)
-
-  p2.tensor.ndim = 2
-  p2.tensor.dim[0] = n
-  p2.tensor.dim[1] = n
-
-  for i in [0...n]
-    for j in [0...n]
-      cofactor(p1, n, i, j)
-      p2.tensor.elem[n * j + i] = pop(); # transpose
-
-  push(p2)
-
-  restore()
-
-
+  push(p2);
+}

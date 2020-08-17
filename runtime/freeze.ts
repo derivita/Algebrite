@@ -1,65 +1,104 @@
+import { stop } from './run';
+import { pop, push } from './stack';
+import { list } from '../sources/list';
+import { print_list } from '../sources/print';
+import {
+  binding,
+  car,
+  cdr,
+  DEBUG,
+  defs,
+  iscons,
+  isSymbolReclaimable,
+  NIL,
+  Num,
+  Sym,
+  symtab,
+  U,
+} from './defs';
+type FrozenState = [Sym[], U[], U[], Num, Num, U, string?];
 
-freeze = ->
+function freeze(): FrozenState {
+  const frozenSymbols: Sym[] = [];
+  const frozenContents: U[] = [];
+  let frozenPatterns: U[] = [];
+  const frozenHash = '';
 
-  frozenSymbols = []
-  frozenContents = []
-  frozenPatterns = []
-  frozenHash = ""
+  for (let i = 0; i < symtab.length; i++) {
+    //if symtab[i].printname == ""
+    //  if isSymbolReclaimable[i] == false
+    //    break
+    //  else
+    //    continue
+    if (isSymbolReclaimable[i] === false) {
+      frozenSymbols.push(symtab[i]);
+      frozenContents.push(binding[i]);
+    }
+  }
 
-  for i in [0...symtab.length]
-    #if symtab[i].printname == ""
-    #  if isSymbolReclaimable[i] == false
-    #    break
-    #  else
-    #    continue
-    if isSymbolReclaimable[i] == false
-      frozenSymbols.push symtab[i]
-      frozenContents.push binding[i]
+  // just clone them
+  frozenPatterns = defs.userSimplificationsInListForm.slice(0);
 
-  # just clone them
-  frozenPatterns= userSimplificationsInListForm.slice(0)
+  return [
+    frozenSymbols,
+    frozenContents,
+    frozenPatterns,
+    defs.zero,
+    defs.one,
+    defs.imaginaryunit,
+    getStateHash(),
+  ];
+}
 
-  return [frozenSymbols, frozenContents, frozenPatterns, zero, one, imaginaryunit, getStateHash()]
+function unfreeze(frozen: FrozenState) {
+  let frozenContents: U[], frozenPatterns: U[], frozenSymbols: Sym[];
+  [
+    frozenSymbols,
+    frozenContents,
+    frozenPatterns,
+    defs.zero,
+    defs.one,
+    defs.imaginaryunit,
+  ] = Array.from(frozen) as FrozenState;
 
-unfreeze = (frozen) ->
-  [frozenSymbols, frozenContents, frozenPatterns, zero, one, imaginaryunit ] = frozen
+  //clear_symbols()
+  for (let i = 0; i < frozenSymbols.length; i++) {
+    symtab[i] = frozenSymbols[i];
+    binding[i] = frozenContents[i];
+  }
 
-  #clear_symbols()
+  return (defs.userSimplificationsInListForm = frozenPatterns.slice(0));
+}
 
-  for i in [0...frozenSymbols.length]
-    symtab[i] = frozenSymbols[i]
-    binding[i] = frozenContents[i]
+function compareState(previousHash: string): boolean {
+  const frozenHash = getStateHash();
+  return frozenHash === previousHash;
+}
 
-  userSimplificationsInListForm = frozenPatterns.slice(0)
+function getStateHash() {
+  let frozenHash = '';
 
+  for (let i = NIL + 1; i < symtab.length; i++) {
+    if (symtab[i].printname === '') {
+      if (isSymbolReclaimable[i] === false) {
+        break;
+      } else {
+        continue;
+      }
+    }
 
-compareState = (previousHash) ->
+    const symtabi = print_list(symtab[i]);
+    const bindingi = print_list(binding[i]);
 
-  frozenHash = getStateHash()
+    frozenHash += ' //' + symtabi + ' : ' + bindingi;
+  }
 
-  if frozenHash == previousHash
-    return true
-  else
-    return false
+  for (const i of Array.from(defs.userSimplificationsInListForm)) {
+    frozenHash += ' pattern: ' + i;
+  }
 
-getStateHash = ->
-  frozenHash = ""
-
-  for i in [NIL+1...symtab.length]
-    if symtab[i].printname == ""
-      if isSymbolReclaimable[i] == false
-        break
-      else
-        continue
-
-    symtabi = print_list(symtab[i])
-    bindingi = print_list(binding[i])
-
-    frozenHash += " //" + symtabi + " : " + bindingi
-
-  for i in userSimplificationsInListForm
-    frozenHash +=  " pattern: " + i
-
-
-  if DEBUG then console.log "frozenHash: " + frozenHash
-  return frozenHash
+  if (DEBUG) {
+    console.log('frozenHash: ' + frozenHash);
+  }
+  return frozenHash;
+}

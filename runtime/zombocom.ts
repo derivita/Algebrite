@@ -1,70 +1,74 @@
+import { check_stack, top_level_eval } from './run';
+import { pop, push } from './stack';
+import { push_double, push_integer } from '../sources/bignum';
+import { list } from '../sources/list';
+import { scan } from '../sources/scan';
+import { BaseAtom, defs, NIL, reset_after_error, symbol, U } from './defs';
+import { init } from './init';
+import { get_binding, usr_symbol } from './symbol';
+if (!defs.inited) {
+  defs.inited = true;
+  init();
+}
 
+function parse_internal(argu: string | number | U | any) {
+  if (typeof argu === 'string') {
+    scan(argu);
+    // now its in the stack
+  } else if (typeof argu === 'number') {
+    if (argu % 1 === 0) {
+      push_integer(argu);
+    } else {
+      push_double(argu);
+    }
+  } else if (argu instanceof BaseAtom) {
+    // hey look its a U
+    push(argu as U);
+  } else {
+    console.warn('unknown argument type', argu);
+    push(symbol(NIL));
+  }
+}
 
-if !inited
-  inited = true
-  init()
+export function parse(argu: string | number | U | any) {
+  let data: U;
+  try {
+    parse_internal(argu);
+    data = pop();
+    check_stack();
+  } catch (error) {
+    reset_after_error();
+    throw error;
+  }
+  return data;
+}
 
+// exec handles the running ia JS of all the algebrite
+// functions. The function name is passed in "name" and
+// the corresponding function is pushed at the top of the stack
+export function exec(name: string, ...argus: (string | number | U | any)[]) {
+  let result: U;
+  const fn = get_binding(usr_symbol(name));
+  check_stack();
+  push(fn);
 
-$.init = init
+  for (let argu of Array.from(argus)) {
+    parse_internal(argu);
+  }
 
-parse_internal = (argu) ->
-  if typeof argu == 'string'
-    scan(argu)
-    # now its in the stack
-  else if typeof argu == 'number'
-    if argu % 1 == 0
-      push_integer(argu)
-    else
-      push_double(argu)
-  else if argu instanceof U
-    # hey look its a U
-    push(argu)
-  else
-    console.warn('unknown argument type', argu)
-    push(symbol(NIL))
+  list(1 + argus.length);
 
-parse = (argu) ->
-  try
-    parse_internal(argu)
-    data = pop()
-    check_stack()
-  catch error
-    reset_after_error()
-    throw error
-  return data
+  const p1 = pop();
+  push(p1);
 
-# exec handles the running ia JS of all the algebrite
-# functions. The function name is passed in "name" and
-# the corresponding function is pushed at the top of the stack
-exec = (name, argus...) ->
-  fn = get_binding(usr_symbol(name))
-  check_stack()
-  push(fn)
+  try {
+    top_level_eval();
+    result = pop();
+    check_stack();
+  } catch (error) {
+    reset_after_error();
+    throw error;
+  }
 
-  for argu in argus
-    parse_internal(argu)
-  
-  list(1 + argus.length)
-  
-  p1 = pop()
-  push(p1)
-  
-  try
-    top_level_eval()
-    result = pop()
-    check_stack()
-  catch error
-    reset_after_error()
-    throw error
-
-  return result
-
-
-$.exec = exec
-$.parse = parse
-
-do ->
-  builtin_fns = ["abs", "add", "adj", "and", "approxratio", "arccos", "arccosh", "arcsin", "arcsinh", "arctan", "arctanh", "arg", "atomize", "besselj", "bessely", "binding", "binomial", "ceiling", "check", "choose", "circexp", "clear", "clearall", "clearpatterns", "clock", "coeff", "cofactor", "condense", "conj", "contract", "cos", "cosh", "decomp", "defint", "deg", "denominator", "det", "derivative", "dim", "dirac", "divisors", "do", "dot", "draw", "dsolve", "eigen", "eigenval", "eigenvec", "erf", "erfc", "eval", "exp", "expand", "expcos", "expsin", "factor", "factorial", "factorpoly", "filter", "float", "floor", "for", "Gamma", "gcd", "hermite", "hilbert", "imag", "component", "inner", "integral", "inv", "invg", "isinteger", "isprime", "laguerre", "lcm", "leading", "legendre", "log", "mod", "multiply", "not", "nroots", "number", "numerator", "operator", "or", "outer", "pattern", "patternsinfo", "polar", "power", "prime", "print", "print2dascii", "printcomputer", "printlatex", "printlist", "printhuman", "product", "quote", "quotient", "rank", "rationalize", "real", "rect", "roots", "round", "equals", "shape", "sgn", "silentpattern", "simplify", "sin", "sinh", "sqrt", "stop", "subst", "sum", "symbolsinfo", "tan", "tanh", "taylor", "test", "testeq", "testge", "testgt", "testle", "testlt", "transpose", "unit", "zero"]
-
-  for fn in builtin_fns
-    $[fn] = exec.bind(this, fn)
+  return result;
+}

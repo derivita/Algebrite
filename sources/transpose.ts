@@ -1,241 +1,282 @@
-# Transpose tensor indices
+import { alloc_tensor } from '../runtime/alloc';
+import {
+  cadddr,
+  caddr,
+  cadr,
+  car,
+  cddr,
+  cdr,
+  defs,
+  isadd,
+  iscons,
+  isidentitymatrix,
+  isinnerordot,
+  ismultiply,
+  isNumericAtom,
+  istensor,
+  istranspose,
+  MAXDIM,
+  NIL,
+  symbol,
+  TRANSPOSE,
+  U,
+} from '../runtime/defs';
+import { stop } from '../runtime/run';
+import { pop, push } from '../runtime/stack';
+import { push_symbol } from '../runtime/symbol';
+import { equal } from '../sources/misc';
+import { add } from './add';
+import { pop_integer, push_integer } from './bignum';
+import { Eval } from './eval';
+import { inner } from './inner';
+import { isplusone, isplustwo, isZeroAtomOrTensor } from './is';
+import { list } from './list';
+import { multiply } from './multiply';
+// Transpose tensor indices
+export function Eval_transpose(p1: U) {
+  push(cadr(p1));
+  Eval();
 
+  // add default params if they
+  // have not been passed
+  if (cddr(p1) === symbol(NIL)) {
+    push_integer(1);
+    push_integer(2);
+  } else {
+    push(caddr(p1));
+    Eval();
+    push(cadddr(p1));
+    Eval();
+  }
+  transpose();
+}
 
+export function transpose() {
+  let t = 0;
+  const ai: number[] = [];
+  const an: number[] = [];
+  for (let i = 0; i < MAXDIM; i++) {
+    ai[i] = 0;
+    an[i] = 0;
+  }
 
-Eval_transpose = ->
-  push(cadr(p1))
-  Eval()
+  // by default p3 is 2 and p2 is 1
+  const p3 = pop(); // index to be transposed
+  let p2 = pop(); // other index to be transposed
+  let p1 = pop(); // what needs to be transposed
 
-  # add default params if they
-  # have not been passed
-  if (cddr(p1) == symbol(NIL))
-    push_integer(1)
-    push_integer(2)
-  else
-    push(caddr(p1))
-    Eval()
-    push(cadddr(p1))
-    Eval()
-  transpose()
+  // a transposition just goes away when
+  // applied to a scalar
+  if (isNumericAtom(p1)) {
+    push(p1);
+    return;
+  }
 
-transpose = ->
-  i = 0
-  j = 0
-  k = 0
-  l = 0
-  m = 0
-  ndim = 0
-  nelem = 0
-  t = 0
-  ai = []
-  an = []
-  for i in [0...MAXDIM]
-    ai[i] = 0
-    an[i] = 0
+  // transposition goes away for identity matrix
+  if ((isplusone(p2) && isplustwo(p3)) || (isplusone(p3) && isplustwo(p2))) {
+    if (isidentitymatrix(p1)) {
+      push(p1);
+      return;
+    }
+  }
 
-  #U **a, **b
+  // a transposition just goes away when
+  // applied to another transposition with
+  // the same columns to be switched
+  if (istranspose(p1)) {
+    const innerTranspSwitch1 = car(cdr(cdr(p1)));
+    const innerTranspSwitch2 = car(cdr(cdr(cdr(p1))));
 
-  save()
+    if (
+      (equal(innerTranspSwitch1, p3) && equal(innerTranspSwitch2, p2)) ||
+      (equal(innerTranspSwitch2, p3) && equal(innerTranspSwitch1, p2)) ||
+      (equal(innerTranspSwitch1, symbol(NIL)) &&
+        equal(innerTranspSwitch2, symbol(NIL)) &&
+        ((isplusone(p3) && isplustwo(p2)) || (isplusone(p2) && isplustwo(p3))))
+    ) {
+      push(car(cdr(p1)));
+      return;
+    }
+  }
 
-  # by default p3 is 2 and p2 is 1
-  p3 = pop() # index to be transposed
-  p2 = pop() # other index to be transposed
-  p1 = pop() # what needs to be transposed
+  // if operand is a sum then distribute
+  // (if we are in expanding mode)
+  if (defs.expanding && isadd(p1)) {
+    p1 = cdr(p1);
+    push(defs.zero);
+    while (iscons(p1)) {
+      push(car(p1));
+      // add the dimensions to switch but only if
+      // they are not the default ones.
+      push(p2);
+      push(p3);
+      transpose();
+      add();
+      p1 = cdr(p1);
+    }
+    return;
+  }
 
-  # a transposition just goes away when
-  # applied to a scalar
-  if (isNumericAtom(p1))
-    push p1
-    restore()
-    return
+  // if operand is a multiplication then distribute
+  // (if we are in expanding mode)
+  if (defs.expanding && ismultiply(p1)) {
+    p1 = cdr(p1);
+    push(defs.one);
+    while (iscons(p1)) {
+      push(car(p1));
+      // add the dimensions to switch but only if
+      // they are not the default ones.
+      push(p2);
+      push(p3);
+      transpose();
+      multiply();
+      p1 = cdr(p1);
+    }
+    return;
+  }
 
-  # transposition goes away for identity matrix
-  if ((isplusone(p2) and isplustwo(p3)) or (isplusone(p3) and isplustwo(p2)))
-    if isidentitymatrix(p1)
-      push p1
-      restore()
-      return
+  // distribute the transpose of a dot
+  // if in expanding mode
+  // note that the distribution happens
+  // in reverse as per tranpose rules.
+  // The dot operator is not
+  // commutative, so, it matters.
+  if (defs.expanding && isinnerordot(p1)) {
+    p1 = cdr(p1);
+    const accumulator = [];
+    while (iscons(p1)) {
+      accumulator.push([car(p1), p2, p3]);
+      p1 = cdr(p1);
+    }
 
-  # a transposition just goes away when
-  # applied to another transposition with
-  # the same columns to be switched
-  if (istranspose(p1))
-    innerTranspSwitch1 = car(cdr(cdr(p1)))
-    innerTranspSwitch2 = car(cdr(cdr(cdr(p1))))
+    for (let eachEntry = accumulator.length - 1; eachEntry >= 0; eachEntry--) {
+      push(accumulator[eachEntry][0]);
+      push(accumulator[eachEntry][1]);
+      push(accumulator[eachEntry][2]);
+      transpose();
+      if (eachEntry !== accumulator.length - 1) {
+        inner();
+      }
+    }
 
-    if ( equal(innerTranspSwitch1,p3) and equal(innerTranspSwitch2,p2) ) or
-      ( equal(innerTranspSwitch2,p3) and equal(innerTranspSwitch1,p2) ) or
-      (( equal(innerTranspSwitch1,symbol(NIL)) and equal(innerTranspSwitch2,symbol(NIL)) ) and ((isplusone(p3) and isplustwo(p2)) or ((isplusone(p2) and isplustwo(p3)))))
-        push car(cdr(p1))
-        restore()
-        return
+    return;
+  }
 
-  # if operand is a sum then distribute
-  # (if we are in expanding mode)
-  if (expanding && isadd(p1))
-    p1 = cdr(p1)
-    push(zero)
-    while (iscons(p1))
-      push(car(p1))
-      # add the dimensions to switch but only if
-      # they are not the default ones.
-      push(p2)
-      push(p3)
-      transpose()
-      add()
-      p1 = cdr(p1)
-    restore()
-    return
+  if (!istensor(p1)) {
+    if (!isZeroAtomOrTensor(p1)) {
+      //stop("transpose: tensor expected, 1st arg is not a tensor")
+      push_symbol(TRANSPOSE);
+      push(p1);
+      // remove the default "dimensions to be switched"
+      // parameters
+      if (
+        (!isplusone(p2) || !isplustwo(p3)) &&
+        (!isplusone(p3) || !isplustwo(p2))
+      ) {
+        push(p2);
+        push(p3);
+        list(4);
+      } else {
+        list(2);
+      }
+      return;
+    }
+    push(defs.zero);
+    return;
+  }
 
-  # if operand is a multiplication then distribute
-  # (if we are in expanding mode)
-  if (expanding && ismultiply(p1))
-    p1 = cdr(p1)
-    push(one)
-    while (iscons(p1))
-      push(car(p1))
-      # add the dimensions to switch but only if
-      # they are not the default ones.
-      push(p2)
-      push(p3)
-      transpose()
-      multiply()
-      p1 = cdr(p1)
-    restore()
-    return
+  const { ndim } = p1.tensor;
+  const { nelem } = p1.tensor;
 
-  # distribute the transpose of a dot
-  # if in expanding mode
-  # note that the distribution happens
-  # in reverse as per tranpose rules.
-  # The dot operator is not
-  # commutative, so, it matters.
-  if (expanding && isinnerordot(p1))
-    p1 = cdr(p1)
-    accumulator = []
-    while (iscons(p1))
-      accumulator.push [car(p1),p2,p3]
-      p1 = cdr(p1)
+  // is it a vector?
+  // so here it's something curious - note how vectors are
+  // not really special two-dimensional matrices, but rather
+  // 1-dimension objects (like tensors can be). So since
+  // they have one dimension, transposition has no effect.
+  // (as opposed as if they were special two-dimensional
+  // matrices)
+  // see also Ran Pan, Tensor Transpose and Its Properties. CoRR abs/1411.1503 (2014)
+  if (ndim === 1) {
+    push(p1);
+    return;
+  }
 
-    for eachEntry in [accumulator.length-1..0]
-      push(accumulator[eachEntry][0])
-      push(accumulator[eachEntry][1])
-      push(accumulator[eachEntry][2])
-      transpose()
-      if eachEntry != accumulator.length-1
-        inner()
+  push(p2);
+  let l = pop_integer();
 
-    restore()
-    return
+  push(p3);
+  let m = pop_integer();
 
+  if (l < 1 || l > ndim || m < 1 || m > ndim) {
+    stop('transpose: index out of range');
+  }
 
-  if (!istensor(p1))
-    if (!isZeroAtomOrTensor(p1))
-      #stop("transpose: tensor expected, 1st arg is not a tensor")
-      push_symbol(TRANSPOSE)
-      push(p1)
-      # remove the default "dimensions to be switched"
-      # parameters
-      if (!isplusone(p2) or !isplustwo(p3)) and (!isplusone(p3) or !isplustwo(p2))
-        push(p2)
-        push(p3)
-        list(4)
-      else
-        list(2)
-      restore()
-      return
-    push(zero)
-    restore()
-    return
+  l--;
+  m--;
 
-  ndim = p1.tensor.ndim
-  nelem = p1.tensor.nelem
+  p2 = alloc_tensor(nelem);
 
-  # is it a vector?
-  # so here it's something curious - note how vectors are
-  # not really special two-dimensional matrices, but rather
-  # 1-dimension objects (like tensors can be). So since
-  # they have one dimension, transposition has no effect.
-  # (as opposed as if they were special two-dimensional
-  # matrices)
-  # see also Ran Pan, Tensor Transpose and Its Properties. CoRR abs/1411.1503 (2014)
+  p2.tensor.ndim = ndim;
 
-  if (ndim == 1)
-    push(p1)
-    restore()
-    return
+  for (let i = 0; i < ndim; i++) {
+    p2.tensor.dim[i] = p1.tensor.dim[i];
+  }
 
-  push(p2)
-  l = pop_integer()
+  p2.tensor.dim[l] = p1.tensor.dim[m];
+  p2.tensor.dim[m] = p1.tensor.dim[l];
 
-  push(p3)
-  m = pop_integer()
+  const a = p1.tensor.elem;
+  const b = p2.tensor.elem;
 
-  if (l < 1 || l > ndim || m < 1 || m > ndim)
-    stop("transpose: index out of range")
+  // init tensor index
+  for (let i = 0; i < ndim; i++) {
+    ai[i] = 0;
+    an[i] = p1.tensor.dim[i];
+  }
 
-  l--
-  m--
+  // copy components from a to b
+  for (let i = 0; i < nelem; i++) {
+    t = ai[l];
+    ai[l] = ai[m];
+    ai[m] = t;
+    t = an[l];
+    an[l] = an[m];
+    an[m] = t;
 
-  p2 = alloc_tensor(nelem)
+    // convert tensor index to linear index k
+    let k = 0;
+    for (let j = 0; j < ndim; j++) {
+      k = k * an[j] + ai[j];
+    }
 
-  p2.tensor.ndim = ndim
+    // swap indices back
+    t = ai[l];
+    ai[l] = ai[m];
+    ai[m] = t;
+    t = an[l];
+    an[l] = an[m];
+    an[m] = t;
 
-  for i in [0...ndim]
-    p2.tensor.dim[i] = p1.tensor.dim[i]
+    // copy one element
+    b[k] = a[i];
 
-  p2.tensor.dim[l] = p1.tensor.dim[m]
-  p2.tensor.dim[m] = p1.tensor.dim[l]
+    // increment tensor index
+    // Suppose the tensor dimensions are 2 and 3.
+    // Then the tensor index ai increments as follows:
+    // 00 -> 01
+    // 01 -> 02
+    // 02 -> 10
+    // 10 -> 11
+    // 11 -> 12
+    // 12 -> 00
 
-  a = p1.tensor.elem
-  b = p2.tensor.elem
+    for (let j = ndim - 1; j >= 0; j--) {
+      if (++ai[j] < an[j]) {
+        break;
+      }
+      ai[j] = 0;
+    }
+  }
 
-  # init tensor index
-
-  for i in [0...ndim]
-    ai[i] = 0
-    an[i] = p1.tensor.dim[i]
-
-  # copy components from a to b
-
-  for i in [0...nelem]
-
-    # swap indices l and m
-
-    t = ai[l]; ai[l] = ai[m]; ai[m] = t;
-    t = an[l]; an[l] = an[m]; an[m] = t;
-
-    # convert tensor index to linear index k
-
-    k = 0
-    for j in [0...ndim]
-      k = (k * an[j]) + ai[j]
-
-    # swap indices back
-
-    t = ai[l]; ai[l] = ai[m]; ai[m] = t;
-    t = an[l]; an[l] = an[m]; an[m] = t;
-
-    # copy one element
-
-    b[k] = a[i]
-
-    # increment tensor index
-
-    # Suppose the tensor dimensions are 2 and 3.
-    # Then the tensor index ai increments as follows:
-    # 00 -> 01
-    # 01 -> 02
-    # 02 -> 10
-    # 10 -> 11
-    # 11 -> 12
-    # 12 -> 00
-
-    for j in [(ndim - 1)..0]
-      if (++ai[j] < an[j])
-        break
-      ai[j] = 0
-
-  push(p2)
-  restore()
-
+  push(p2);
+}

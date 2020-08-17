@@ -1,4 +1,10 @@
-### defint =====================================================================
+import { cadr, car, cddr, cdr, iscons, U } from '../runtime/defs';
+import { pop, push } from '../runtime/stack';
+import { subtract } from './add';
+import { Eval } from './eval';
+import { integral } from './integral';
+import { subst } from './subst';
+/* defint =====================================================================
 
 Tags
 ----
@@ -16,76 +22,67 @@ integrals"), for example a double integral (which can represent for
 example a volume under a surface), or a triple integral, etc. For
 example, defint(f,x,a,b,y,c,d).
 
-###
+*/
+export function Eval_defint(p1: U) {
+  push(cadr(p1));
+  Eval();
+  let F = pop();
 
+  p1 = cddr(p1);
 
+  // defint can handle multiple
+  // integrals, so we loop over the
+  // multiple integrals here
+  while (iscons(p1)) {
+    push(car(p1));
+    p1 = cdr(p1);
+    Eval();
+    const X = pop();
 
-#define F p2
-#define X p3
-#define A p4
-#define B p5
+    push(car(p1));
+    p1 = cdr(p1);
+    Eval();
+    const A = pop();
 
-Eval_defint = ->
-  push(cadr(p1))
-  Eval()
-  p2 = pop() # p2 is F
+    push(car(p1));
+    p1 = cdr(p1);
+    Eval();
+    const B = pop();
 
-  p1 = cddr(p1)
+    // obtain the primitive of F against the
+    // specified variable X
+    // note that the primitive changes over
+    // the calculation of the multiple
+    // integrals.
+    push(F);
+    push(X);
+    integral();
+    F = pop(); // contains the antiderivative of F
 
-  # defint can handle multiple
-  # integrals, so we loop over the
-  # multiple integrals here
-  while (iscons(p1))
+    // evaluate the integral in A
+    push(F);
+    push(X);
+    push(B);
+    subst();
+    Eval();
 
-    push(car(p1))
-    p1 = cdr(p1)
-    Eval()
-    p3 = pop() # p3 is X
+    // evaluate the integral in B
+    push(F);
+    push(X);
+    push(A);
+    subst();
+    Eval();
 
-    push(car(p1))
-    p1 = cdr(p1)
-    Eval()
-    p4 = pop() # p4 is A
+    // integral between B and A is the
+    // subtraction. Note that this could
+    // be a number but also a function.
+    // and we might have to integrate this
+    // number/function again doing the while
+    // loop again if this is a multiple
+    // integral.
+    subtract();
+    F = pop();
+  }
 
-    push(car(p1))
-    p1 = cdr(p1)
-    Eval()
-    p5 = pop() # p5 is B
-
-    # obtain the primitive of F against the
-    # specified variable X
-    # note that the primitive changes over
-    # the calculation of the multiple
-    # integrals.
-    push(p2)
-    push(p3)
-    integral()
-    p2 = pop() # contains the antiderivative of F
-
-    # evaluate the integral in A
-    push(p2)
-    push(p3)
-    push(p5)
-    subst()
-    Eval()
-
-    # evaluate the integral in B
-    push(p2)
-    push(p3)
-    push(p4)
-    subst()
-    Eval()
-
-    # integral between B and A is the
-    # subtraction. Note that this could
-    # be a number but also a function.
-    # and we might have to integrate this
-    # number/function again doing the while
-    # loop again if this is a multiple
-    # integral.
-    subtract()
-    p2 = pop()
-
-  push(p2)
-
-
+  push(F);
+}

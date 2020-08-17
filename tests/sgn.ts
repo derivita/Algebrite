@@ -1,14 +1,3 @@
-test_sgn = ->
-  run_test [
+import { run_test } from '../test-harness';
 
-    "sgn(-3)",
-    "-1",
-    
-
-    "sgn(0)",
-    "0",
-    
-    "sgn(3)",
-    "1",
-
-  ]
+run_test(['sgn(-3)', '-1', 'sgn(0)', '0', 'sgn(3)', '1']);

@@ -1,156 +1,164 @@
+import { gcd } from './gcd';
+import {
+  ADD,
+  caddr,
+  cadr,
+  car,
+  cdr,
+  defs,
+  iscons,
+  istensor,
+  MULTIPLY,
+  POWER,
+  symbol,
+  U,
+} from '../runtime/defs';
+import { pop, push } from '../runtime/stack';
+import { add } from './add';
+import { Condense } from './condense';
+import { Eval } from './eval';
+import { isnegativenumber } from './is';
+import { divide, inverse, multiply } from './multiply';
+import { check_tensor_dimensions } from './tensor';
+export function Eval_rationalize(p1: U) {
+  push(cadr(p1));
+  Eval();
+  rationalize();
+}
 
+export function rationalize() {
+  const x = defs.expanding;
+  yyrationalize();
+  defs.expanding = x;
+}
 
-Eval_rationalize = ->
-  push(cadr(p1))
-  Eval()
-  rationalize()
+function yyrationalize() {
+  const theArgument = pop();
 
-rationalize = ->
-  x = expanding
-  yyrationalize()
-  expanding = x
+  if (istensor(theArgument)) {
+    __rationalize_tensor(theArgument);
+    return;
+  }
 
-yyrationalize = ->
-  theArgument = pop()
+  defs.expanding = 0;
 
-  if (istensor(theArgument))
-    __rationalize_tensor(theArgument)
-    return
+  if (car(theArgument) !== symbol(ADD)) {
+    push(theArgument);
+    return;
+  }
 
-  expanding = 0
+  // get common denominator
+  push(defs.one);
+  multiply_denominators(theArgument);
+  const commonDenominator = pop();
 
-  if (car(theArgument) != symbol(ADD))
-    push(theArgument)
-    return
+  // multiply each term by common denominator
+  push(defs.zero);
+  let eachTerm = cdr(theArgument);
+  while (iscons(eachTerm)) {
+    push(commonDenominator);
+    push(car(eachTerm));
+    multiply();
+    add();
+    eachTerm = cdr(eachTerm);
+  }
 
-  if DEBUG
-    printf("rationalize: this is the input expr:\n")
-    printline(theArgument)
+  // collect common factors
+  Condense();
 
-  # get common denominator
+  // divide by common denominator
+  push(commonDenominator);
+  divide();
+}
 
-  push(one)
-  multiply_denominators(theArgument)
-  commonDenominator = pop()
+function multiply_denominators(p: U) {
+  if (car(p) === symbol(ADD)) {
+    p = cdr(p);
 
-  if DEBUG
-    printf("rationalize: this is the common denominator:\n")
-    printline(commonDenominator)
+    while (iscons(p)) {
+      multiply_denominators_term(car(p));
+      p = cdr(p);
+    }
+  } else {
+    multiply_denominators_term(p);
+  }
+}
 
-  # multiply each term by common denominator
+function multiply_denominators_term(p: U) {
+  if (car(p) === symbol(MULTIPLY)) {
+    p = cdr(p);
 
-  push(zero)
-  eachTerm = cdr(theArgument)
-  while (iscons(eachTerm))
-    push(commonDenominator)
-    push(car(eachTerm))
-    multiply()
-    add()
-    eachTerm = cdr(eachTerm)
+    while (iscons(p)) {
+      multiply_denominators_factor(car(p));
+      p = cdr(p);
+    }
+  } else {
+    multiply_denominators_factor(p);
+  }
+}
 
-  if DEBUG
-    printf("rationalize: original expr times common denominator:\n")
-    printline(stack[tos - 1])
+function multiply_denominators_factor(p: U) {
+  if (car(p) !== symbol(POWER)) {
+    return;
+  }
 
-  # collect common factors
+  push(p);
 
-  Condense()
+  p = caddr(p);
 
-  if DEBUG
-    printf("rationalize: after factoring:\n")
-    printline(stack[tos - 1])
+  // like x^(-2) ?
+  if (isnegativenumber(p)) {
+    inverse();
+    __lcm();
+    return;
+  }
 
-  # divide by common denominator
+  // like x^(-a) ?
+  if (car(p) === symbol(MULTIPLY) && isnegativenumber(cadr(p))) {
+    inverse();
+    __lcm();
+    return;
+  }
 
-  push(commonDenominator)
-  divide()
+  // no match
+  pop();
+}
 
-  if DEBUG
-    printf("rationalize: after dividing by common denom. (and we're done):\n")
-    printline(stack[tos - 1])
+function __rationalize_tensor(theTensor) {
+  push(theTensor);
 
-multiply_denominators = (p) ->
-  if (car(p) == symbol(ADD))
-    p = cdr(p)
-    while (iscons(p))
-      multiply_denominators_term(car(p))
-      p = cdr(p)
-  else
-    multiply_denominators_term(p)
+  Eval(); // makes a copy
 
-multiply_denominators_term = (p) ->
-  if (car(p) == symbol(MULTIPLY))
-    p = cdr(p)
-    while (iscons(p))
-      multiply_denominators_factor(car(p))
-      p = cdr(p)
-  else
-    multiply_denominators_factor(p)
+  theTensor = pop();
 
-multiply_denominators_factor = (p) ->
-  if (car(p) != symbol(POWER))
-    return
+  if (!istensor(theTensor)) {
+    // might be zero
+    push(theTensor);
+    return;
+  }
 
-  push(p)
+  const n = theTensor.tensor.nelem;
 
-  p = caddr(p)
+  for (let i = 0; i < n; i++) {
+    push(theTensor.tensor.elem[i]);
+    rationalize();
+    theTensor.tensor.elem[i] = pop();
+  }
 
-  # like x^(-2) ?
+  check_tensor_dimensions(theTensor);
 
-  if (isnegativenumber(p))
-    inverse()
-    __lcm()
-    return
+  push(theTensor);
+}
 
-  # like x^(-a) ?
+function __lcm() {
+  const p1 = pop();
+  const p2 = pop();
 
-  if (car(p) == symbol(MULTIPLY) && isnegativenumber(cadr(p)))
-    inverse()
-    __lcm()
-    return
-
-  # no match
-
-  pop()
-
-__rationalize_tensor = (theTensor) ->
-
-  i = 0
-  push(theTensor)
-
-  Eval(); # makes a copy
-
-  theTensor = pop()
-
-  if (!istensor(theTensor)) # might be zero
-    push(theTensor)
-    return
-
-  n = theTensor.tensor.nelem
-
-  for i in [0...n]
-    push(theTensor.tensor.elem[i])
-    rationalize()
-    theTensor.tensor.elem[i] = pop()
-
-  check_tensor_dimensions theTensor
-
-  push(theTensor)
-
-
-
-__lcm = ->
-  save()
-
-  p1 = pop()
-  p2 = pop()
-
-  push(p1)
-  push(p2)
-  multiply()
-  push(p1)
-  push(p2)
-  gcd()
-  divide()
-
-  restore()
+  push(p1);
+  push(p2);
+  multiply();
+  push(p1);
+  push(p2);
+  gcd();
+  divide();
+}

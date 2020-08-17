@@ -1,27 +1,26 @@
-# Bignum addition and subtraction
+// Bignum addition and subtraction
 
+//static unsigned int *addf(unsigned int *, unsigned int *)
+//static unsigned int *subf(unsigned int *, unsigned int *)
 
+export function madd(
+  a: bigInt.BigInteger,
+  b: bigInt.BigInteger
+): bigInt.BigInteger {
+  return a.add(b);
+}
 
-#static unsigned int *addf(unsigned int *, unsigned int *)
-#static unsigned int *subf(unsigned int *, unsigned int *)
-#static int ucmp(unsigned int *, unsigned int *)
+export function msub(
+  a: bigInt.BigInteger,
+  b: bigInt.BigInteger
+): bigInt.BigInteger {
+  return a.subtract(b);
+}
 
-madd = (a, b) ->
+function addf(a, b) {
+  return a.add(b);
+}
 
-  return a.add b
-
-msub = (a, b) ->
-  return a.subtract b
-
-addf = (a, b) ->
-
-  return a.add b
-
-subf = (a, b) ->
-  return a.subtract b
-
-# unsigned compare
-
-ucmp = (a,b) ->
-  return a.compareAbs b
-
+function subf(a, b) {
+  return a.subtract(b);
+}

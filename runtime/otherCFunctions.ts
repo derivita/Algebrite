@@ -1,81 +1,204 @@
+import { stop } from './run';
+import { push, pop } from './stack';
+import { pop_integer } from '../sources/bignum';
+import { isZeroAtomOrTensor } from '../sources/is';
+import {
+  defs,
+  FORCE_FIXED_PRINTOUT,
+  MAX_FIXED_PRINTOUT_DIGITS,
+  PRINTMODE_LATEX,
+  Sign,
+  symbol,
+  iscons,
+  car,
+  cdr,
+} from './defs';
+import { get_binding } from './symbol';
+import { list } from '../sources/list';
 
-strcmp = (str1, str2) ->
-  if str1 == str2 then 0 else if str1 > str2 then 1 else -1
+export function strcmp(str1: string, str2: string): Sign {
+  if (str1 === str2) {
+    return 0;
+  } else if (str1 > str2) {
+    return 1;
+  } else {
+    return -1;
+  }
+}
 
+export function doubleToReasonableString(d) {
+  // when generating code, print out
+  // the standard JS Number printout
+  let stringRepresentation;
+  if (defs.codeGen) {
+    return '' + d;
+  }
 
-doubleToReasonableString = (d) ->
+  if (isZeroAtomOrTensor(get_binding(symbol(FORCE_FIXED_PRINTOUT)))) {
+    stringRepresentation = '' + d;
+    // manipulate the string so that it can be parsed by
+    // Algebrite (something like 1.23e-123 wouldn't cut it because
+    // that would be parsed as 1.23*e - 123)
 
-  # when generating code, print out
-  # the standard JS Number printout
-  if true
-    return "" + d
+    if (defs.printMode === PRINTMODE_LATEX) {
+      // 1.0\mathrm{e}{-10} looks much better than the plain 1.0e-10
+      if (/\d*\.\d*e.*/gm.test(stringRepresentation)) {
+        stringRepresentation = stringRepresentation.replace(
+          /e(.*)/gm,
+          '\\mathrm{e}{$1}'
+        );
+      } else {
+        // if there is no dot in the mantissa, add it so we see it's
+        // a double and not a perfect number
+        // e.g. 1e-10 becomes 1.0\mathrm{e}{-10}
+        stringRepresentation = stringRepresentation.replace(
+          /(\d+)e(.*)/gm,
+          '$1.0\\mathrm{e}{$2}'
+        );
+      }
+    } else {
+      if (/\d*\.\d*e.*/gm.test(stringRepresentation)) {
+        stringRepresentation = stringRepresentation.replace(
+          /e(.*)/gm,
+          '*10^($1)'
+        );
+      } else {
+        // if there is no dot in the mantissa, add it so we see it's
+        // a double and not a perfect number
+        // e.g. 1e-10 becomes 1.0e-10
+        stringRepresentation = stringRepresentation.replace(
+          /(\d+)e(.*)/gm,
+          '$1.0*10^($2)'
+        );
+      }
+    }
+  } else {
+    push(get_binding(symbol(MAX_FIXED_PRINTOUT_DIGITS)));
+    const maxFixedPrintoutDigits = pop_integer();
+    //console.log "maxFixedPrintoutDigits: " + maxFixedPrintoutDigits
+    //console.log "type: " + typeof(maxFixedPrintoutDigits)
+    //console.log "toFixed: " + d.toFixed(maxFixedPrintoutDigits)
 
+    stringRepresentation = '' + d.toFixed(maxFixedPrintoutDigits);
 
-  if (isZeroAtomOrTensor(get_binding(symbol(FORCE_FIXED_PRINTOUT))))
-    stringRepresentation = "" + d
-    # manipulate the string so that it can be parsed by
-    # Algebrite (something like 1.23e-123 wouldn't cut it because
-    # that would be parsed as 1.23*e - 123)
+    // remove any trailing zeroes after the dot
+    // see https://stackoverflow.com/questions/26299160/using-regex-how-do-i-remove-the-trailing-zeros-from-a-decimal-number
+    stringRepresentation = stringRepresentation.replace(
+      /(\.\d*?[1-9])0+$/gm,
+      '$1'
+    );
+    // in case there are only zeroes after the dot, removes the dot too
+    stringRepresentation = stringRepresentation.replace(/\.0+$/gm, '');
 
-    if printMode == PRINTMODE_LATEX
-      # 1\mathrm{e}{-10} looks much better than the plain 1e-10
-      stringRepresentation = stringRepresentation.replace(/e(.*)/gm, "\\mathrm{e}{$1}");
-    else
-      stringRepresentation = stringRepresentation.replace(/e(.*)/gm, "*10^($1)");
+    // we actually want to give a hint to user that
+    // it's a double, so add a trailing ".0" if there
+    // is no decimal point
+    if (stringRepresentation.indexOf('.') === -1) {
+      stringRepresentation += '.0';
+    }
 
-  else
-    push(get_binding(symbol(MAX_FIXED_PRINTOUT_DIGITS)))
-    maxFixedPrintoutDigits = pop_integer()
-    #console.log "maxFixedPrintoutDigits: " + maxFixedPrintoutDigits
-    #console.log "type: " + typeof(maxFixedPrintoutDigits)
-    #console.log "toFixed: " + d.toFixed(maxFixedPrintoutDigits)
+    if (parseFloat(stringRepresentation) !== d) {
+      stringRepresentation = d.toFixed(maxFixedPrintoutDigits) + '...';
+    }
+  }
 
-    stringRepresentation = "" + d.toFixed(maxFixedPrintoutDigits)
+  return stringRepresentation;
+}
 
-    # remove any trailing zeroes after the dot
-    # see https://stackoverflow.com/questions/26299160/using-regex-how-do-i-remove-the-trailing-zeros-from-a-decimal-number
-    stringRepresentation = stringRepresentation.replace(/(\.\d*?[1-9])0+$/gm, "$1")
-    # in case there are only zeroes after the dot, removes the dot too
-    stringRepresentation = stringRepresentation.replace(/\.0+$/gm, "")
+// does nothing
+export function clear_term() {}
 
-    # we actually want to give a hint to user that
-    # it's a double, so add a trailing ".0" if there
-    # is no decimal point
-    if stringRepresentation.indexOf(".") == -1 
-      stringRepresentation += ".0"
+// s is a string here anyways
+export function isspace(s: string): boolean {
+  if (s == null) {
+    return false;
+  }
+  return (
+    s === ' ' ||
+    s === '\t' ||
+    s === '\n' ||
+    s === '\v' ||
+    s === '\f' ||
+    s === '\r'
+  );
+}
 
-    if parseFloat(stringRepresentation) != d
-      stringRepresentation = d.toFixed(maxFixedPrintoutDigits) + "..."
+export function isdigit(str: string): boolean {
+  if (str == null) {
+    return false;
+  }
+  return /^\d+$/.test(str);
+}
 
+export function isalpha(str: string): boolean {
+  if (str == null) {
+    return false;
+  }
+  //Check for non-alphabetic characters and space
+  return str.search(/[^A-Za-z]/) === -1;
+}
 
-  return stringRepresentation
+function isalphaOrUnderscore(str: string): boolean {
+  if (str == null) {
+    return false;
+  }
+  //Check for non-alphabetic characters and space
+  return str.search(/[^A-Za-z_]/) === -1;
+}
 
-# does nothing
-clear_term = ->
+function isunderscore(str: string): boolean {
+  if (str == null) {
+    return false;
+  }
+  return str.search(/_/) === -1;
+}
 
-# s is a string here anyways
-isspace = (s) ->
-  if !s? then return false
-  return s == ' ' or s == '\t' or s == '\n' or s == '\v' or s == '\f' or s == '\r'
+export function isalnumorunderscore(str: string): boolean {
+  if (str == null) {
+    return false;
+  }
+  return isalphaOrUnderscore(str) || isdigit(str);
+}
 
-isdigit = (str) ->
-  if !str? then return false
-  return /^\d+$/.test(str)
+export function __range__(
+  left: number,
+  right: number,
+  inclusive: boolean
+): number[] {
+  let range: number[] = [];
+  let ascending = left < right;
+  let end = !inclusive ? right : ascending ? right + 1 : right - 1;
+  for (let i = left; ascending ? i < end : i > end; ascending ? i++ : i--) {
+    range.push(i);
+  }
+  return range;
+}
 
-isalpha = (str) ->
-  if !str? then return false
-  #Check for non-alphabetic characters and space
-  return (str.search(/[^A-Za-z]/) == -1)
+// Append one list to another.
+export function append() {
+  // from https://github.com/gbl08ma/eigenmath/blob/8be989f00f2f6f37989bb7fd2e75a83f882fdc49/src/append.cpp
+  let p2 = pop();
+  let p1 = pop();
+  const h = defs.tos;
+  while (iscons(p1)) {
+    push(car(p1));
+    p1 = cdr(p1);
+  }
+  while (iscons(p2)) {
+    push(car(p2));
+    p2 = cdr(p2);
+  }
+  list(defs.tos - h);
+}
 
-isalphaOrUnderscore = (str) ->
-  if !str? then return false
-  #Check for non-alphabetic characters and space
-  return (str.search(/[^A-Za-z_]/) == -1)
+export function jn(n: number, x: number): number {
+  stop('Not implemented');
+  // See https://git.musl-libc.org/cgit/musl/tree/src/math/jn.c
+  // https://github.com/SheetJS/bessel
+}
 
-isunderscore = (str) ->
-  if !str? then return false
-  return (str.search(/_/) == -1)
-
-isalnumorunderscore = (str) ->
-  if !str? then return false
-  return (isalphaOrUnderscore(str) or isdigit(str))
+export function yn(n: number, x: number): number {
+  stop('Not implemented');
+  // See https://git.musl-libc.org/cgit/musl/tree/src/math/jn.c
+  // https://github.com/SheetJS/bessel
+}

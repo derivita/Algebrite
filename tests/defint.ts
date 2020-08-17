@@ -1,55 +1,54 @@
-test_defint = ->
-  run_test [
-    "defint(x^2,y,0,sqrt(1-x^2),x,-1,1)",
-    "1/8*pi",
+import { run_test } from '../test-harness';
 
-    # from the eigenmath manual
+run_test([
+  'defint(x^2,y,0,sqrt(1-x^2),x,-1,1)',
+  '1/8*pi',
 
-    "z=2",
-    "",
+  // from the eigenmath manual
 
-    "P=[x,y,z]",
-    "",
+  'z=2',
+  '',
 
-    "a=abs(cross(d(P,x),d(P,y)))",
-    "",
+  'P=[x,y,z]',
+  '',
 
-    "defint(a,y,-sqrt(1-x^2),sqrt(1-x^2),x,-1,1)",
-    "pi",
+  'a=abs(cross(d(P,x),d(P,y)))',
+  '',
 
-    # from the eigenmath manual
+  'defint(a,y,-sqrt(1-x^2),sqrt(1-x^2),x,-1,1)',
+  'pi',
 
-    "z=x^2+2y",
-    "",
+  // from the eigenmath manual
 
-    "P=[x,y,z]",
-    "",
+  'z=x^2+2y',
+  '',
 
-    "a=abs(cross(d(P,x),d(P,y)))",
-    "",
+  'P=[x,y,z]',
+  '',
 
-    "defint(a,x,0,1,y,0,1)",
-    "3/2+5/8*log(5)",
+  'a=abs(cross(d(P,x),d(P,y)))',
+  '',
 
-    # from the eigenmath manual
+  'defint(a,x,0,1,y,0,1)',
+  '3/2+5/8*log(5)',
 
-    "x=u*cos(v)",
-    "",
+  // from the eigenmath manual
 
-    "y=u*sin(v)",
-    "",
+  'x=u*cos(v)',
+  '',
 
-    "z=v",
-    "",
+  'y=u*sin(v)',
+  '',
 
-    "S=[x,y,z]",
-    "",
+  'z=v',
+  '',
 
-    "a=abs(cross(d(S,u),d(S,v)))",
-    "",
+  'S=[x,y,z]',
+  '',
 
-    "defint(a,u,0,1,v,0,3pi)",
-    "3/2*pi*log(1+2^(1/2))+3*pi/(2^(1/2))",
-  ]
+  'a=abs(cross(d(S,u),d(S,v)))',
+  '',
 
-  
+  'defint(a,u,0,1,v,0,3pi)',
+  '3/2*pi*log(1+2^(1/2))+3*pi/(2^(1/2))',
+]);

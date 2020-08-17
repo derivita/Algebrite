@@ -1,11 +1,9 @@
-# Bignum power
+// Bignum power
+export function mpow(
+  a: bigInt.BigInteger,
+  n: number | bigInt.BigInteger
+): bigInt.BigInteger {
+  return a.pow(n);
+}
 
-
-
-# a is a bigint, n is a small normal int
-mpow = (a,n) ->
-
-  return a.pow n
-
-#if SELFTEST
-
+//if SELFTEST

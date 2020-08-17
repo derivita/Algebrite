@@ -1,4 +1,21 @@
-### arctanh =====================================================================
+import {
+  ARCTANH,
+  cadr,
+  car,
+  defs,
+  isdouble,
+  symbol,
+  TANH,
+  U,
+} from '../runtime/defs';
+import { stop } from '../runtime/run';
+import { pop, push } from '../runtime/stack';
+import { push_symbol } from '../runtime/symbol';
+import { push_double } from './bignum';
+import { Eval } from './eval';
+import { isZeroAtomOrTensor } from './is';
+import { list } from './list';
+/* arctanh =====================================================================
 
 Tags
 ----
@@ -12,40 +29,37 @@ General description
 -------------------
 Returns the inverse hyperbolic tangent of x.
 
-###
+*/
+export function Eval_arctanh(x: U) {
+  push(cadr(x));
+  Eval();
+  arctanh();
+}
 
-Eval_arctanh = ->
-  push(cadr(p1))
-  Eval()
-  arctanh()
+function arctanh() {
+  let d = 0.0;
+  const x: U = pop();
+  if (car(x) === symbol(TANH)) {
+    push(cadr(x));
+    return;
+  }
 
-arctanh = ->
-  d = 0.0
-  save()
-  p1 = pop()
-  if (car(p1) == symbol(TANH))
-    push(cadr(p1))
-    restore()
-    return
+  if (isdouble(x)) {
+    ({ d } = x);
+    if (d < -1.0 || d > 1.0) {
+      stop('arctanh function argument is not in the interval [-1,1]');
+    }
+    d = Math.log((1.0 + d) / (1.0 - d)) / 2.0;
+    push_double(d);
+    return;
+  }
 
-  if (isdouble(p1))
-    d = p1.d
-    if (d < -1.0 || d > 1.0)
-      stop("arctanh function argument is not in the interval [-1,1]")
-    d = Math.log((1.0 + d) / (1.0 - d)) / 2.0
-    push_double(d)
-    restore()
-    return
+  if (isZeroAtomOrTensor(x)) {
+    push(defs.zero);
+    return;
+  }
 
-  if (isZeroAtomOrTensor(p1))
-    push(zero)
-    restore()
-    return
-
-  push_symbol(ARCTANH)
-  push(p1)
-  list(2)
-  restore()
-
-
-
+  push_symbol(ARCTANH);
+  push(x);
+  list(2);
+}

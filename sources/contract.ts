@@ -1,4 +1,22 @@
-### contract =====================================================================
+import { alloc_tensor } from '../runtime/alloc';
+import {
+  cadddr,
+  caddr,
+  cadr,
+  cddr,
+  defs,
+  istensor,
+  NIL,
+  symbol,
+  U,
+} from '../runtime/defs';
+import { stop } from '../runtime/run';
+import { pop, push } from '../runtime/stack';
+import { add } from './add';
+import { pop_integer, push_integer } from './bignum';
+import { Eval } from './eval';
+import { isZeroAtomOrTensor } from './is';
+/* contract =====================================================================
 
 Tags
 ----
@@ -14,121 +32,131 @@ Contract across tensor indices i.e. returns "a" summed over indices i and j.
 If i and j are omitted then 1 and 2 are used.
 contract(m) is equivalent to the trace of matrix m.
 
-###
+*/
+export function Eval_contract(p1: U) {
+  push(cadr(p1));
+  Eval();
+  if (cddr(p1) === symbol(NIL)) {
+    push_integer(1);
+    push_integer(2);
+  } else {
+    push(caddr(p1));
+    Eval();
+    push(cadddr(p1));
+    Eval();
+  }
+  contract();
+}
 
+function contract() {
+  yycontract();
+}
 
+function yycontract() {
+  const ai = [];
+  const an = [];
 
-Eval_contract = ->
-  push(cadr(p1))
-  Eval()
-  if (cddr(p1) == symbol(NIL))
-    push_integer(1)
-    push_integer(2)
-  else
-    push(caddr(p1))
-    Eval()
-    push(cadddr(p1))
-    Eval()
-  contract()
+  const p3: U = pop();
+  let p2: U = pop();
+  const p1: U = pop();
 
-contract = ->
-  save()
-  yycontract()
-  restore()
+  if (!istensor(p1)) {
+    if (!isZeroAtomOrTensor(p1)) {
+      stop('contract: tensor expected, 1st arg is not a tensor');
+    }
+    push(defs.zero);
+    return;
+  }
 
-yycontract = ->
-  h = 0
-  i = 0
-  j = 0
-  k = 0
-  l = 0
-  m = 0
-  n = 0
-  ndim = 0
-  nelem = 0
-  ai = []
-  an = []
+  push(p2);
+  let l = pop_integer();
 
-  p3 = pop()
-  p2 = pop()
-  p1 = pop()
+  push(p3);
+  let m = pop_integer();
 
-  if (!istensor(p1))
-    if (!isZeroAtomOrTensor(p1))
-      stop("contract: tensor expected, 1st arg is not a tensor")
-    push(zero)
-    return
+  const { ndim } = p1.tensor;
 
-  push(p2)
-  l = pop_integer()
+  if (
+    l < 1 ||
+    l > ndim ||
+    m < 1 ||
+    m > ndim ||
+    l === m ||
+    p1.tensor.dim[l - 1] !== p1.tensor.dim[m - 1]
+  ) {
+    stop('contract: index out of range');
+  }
 
-  push(p3)
-  m = pop_integer()
+  l--;
+  m--;
 
-  ndim = p1.tensor.ndim
+  const n = p1.tensor.dim[l];
 
-  if (l < 1 || l > ndim || m < 1 || m > ndim || l == m \
-  || p1.tensor.dim[l - 1] != p1.tensor.dim[m - 1])
-    stop("contract: index out of range")
+  // nelem is the number of elements in "b"
 
-  l--
-  m--
+  let nelem = 1;
+  for (let i = 0; i < ndim; i++) {
+    if (i !== l && i !== m) {
+      nelem *= p1.tensor.dim[i];
+    }
+  }
 
-  n = p1.tensor.dim[l]
+  //console.log "nelem:" + nelem
+  p2 = alloc_tensor(nelem);
+  //console.log "p2:" + p2
 
-  # nelem is the number of elements in "b"
+  p2.tensor.ndim = ndim - 2;
 
-  nelem = 1
-  for i in [0...ndim]
-    if (i != l && i != m)
-      nelem *= p1.tensor.dim[i]
+  let j = 0;
+  for (let i = 0; i < ndim; i++) {
+    if (i !== l && i !== m) {
+      p2.tensor.dim[j++] = p1.tensor.dim[i];
+    }
+  }
 
-  #console.log "nelem:" + nelem
-  p2 = alloc_tensor(nelem)
-  #console.log "p2:" + p2
+  const a = p1.tensor.elem;
+  const b = p2.tensor.elem;
 
-  p2.tensor.ndim = ndim - 2
+  //console.log "a: " + a
+  //console.log "b: " + b
 
-  j = 0
-  for i in [0...ndim]
-    if (i != l && i != m)
-      p2.tensor.dim[j++] = p1.tensor.dim[i]
+  for (let i = 0; i < ndim; i++) {
+    ai[i] = 0;
+    an[i] = p1.tensor.dim[i];
+  }
 
+  for (let i = 0; i < nelem; i++) {
+    push(defs.zero);
+    for (let j = 0; j < n; j++) {
+      ai[l] = j;
+      ai[m] = j;
+      let h = 0;
+      for (let k = 0; k < ndim; k++) {
+        h = h * an[k] + ai[k];
+      }
+      push(a[h]);
+      //console.log "a[h]: " + a[h]
+      add();
+    }
+    //console.log "tos: " + stack[tos-1]
+    b[i] = pop();
+    //console.log "b[i]: " + b[i]
+    for (let j = ndim - 1; j >= 0; j--) {
+      if (j === l || j === m) {
+        continue;
+      }
+      if (++ai[j] < an[j]) {
+        break;
+      }
+      ai[j] = 0;
+    }
+  }
 
-  a = p1.tensor.elem
-  b = p2.tensor.elem
+  if (nelem === 1) {
+    push(b[0]);
+  } else {
+    push(p2);
+  }
+}
 
-  #console.log "a: " + a
-  #console.log "b: " + b
-
-  for i in [0...ndim]
-    ai[i] = 0
-    an[i] = p1.tensor.dim[i]
-
-  for i in [0...nelem]
-    push(zero)
-    for j in [0...n]
-      ai[l] = j
-      ai[m] = j
-      h = 0
-      for k in [0...ndim]
-        h = (h * an[k]) + ai[k]
-      push(a[h])
-      #console.log "a[h]: " + a[h]
-      add()
-      #console.log "tos: " + stack[tos-1]
-    b[i] = pop()
-    #console.log "b[i]: " + b[i]
-    for j in [(ndim - 1)..0]
-      if (j == l || j == m)
-        continue
-      if (++ai[j] < an[j])
-        break
-      ai[j] = 0
-
-  if (nelem == 1)
-    push(b[0])
-  else
-    push(p2)
-
-  #console.log "returning: " + stack[tos-1]
+//console.log "returning: " + stack[tos-1]

@@ -1,186 +1,183 @@
+import { alloc_tensor } from '../runtime/alloc';
+import { defs, istensor, Tensor, U } from '../runtime/defs';
+import { stop } from '../runtime/run';
+import { moveTos, push } from '../runtime/stack';
+import { pop_integer } from './bignum';
+import { check_tensor_dimensions } from './tensor';
 
+// n is the total number of things on the stack. The first thing on the stack
+// is the object to be indexed, followed by the indices themselves.
 
-# n is the total number of things on the stack. The first thing on the stack
-# is the object to be indexed, followed by the indices themselves.
+// called by Eval_index
+export function index_function(n: number) {
+  const s = defs.tos - n;
+  let p1: U = defs.stack[s] as Tensor;
 
-# called by Eval_index
-index_function = (n) ->
-  i = 0
-  k = 0
-  m = 0
-  ndim = 0
-  nelem = 0
-  t = 0
+  const { ndim } = p1.tensor;
 
-  save()
-  s = tos - n
-  p1 = stack[s]
+  const m = n - 1;
 
+  if (m > ndim) {
+    stop('too many indices for tensor');
+  }
 
-  ndim = p1.tensor.ndim
+  let k = 0;
 
-  m = n - 1
+  for (let i = 0; i < m; i++) {
+    push(defs.stack[s + i + 1]);
+    const t = pop_integer();
+    if (t < 1 || t > p1.tensor.dim[i]) {
+      stop('index out of range');
+    }
+    k = k * p1.tensor.dim[i] + t - 1;
+  }
 
-  if (m > ndim)
-    stop("too many indices for tensor")
+  if (ndim === m) {
+    moveTos(defs.tos - n);
+    push(p1.tensor.elem[k]);
+    return;
+  }
 
-  k = 0
+  for (let i = m; i < ndim; i++) {
+    k = k * p1.tensor.dim[i] + 0;
+  }
 
-  for i in [0...m]
-    push(stack[s + i + 1])
-    t = pop_integer()
-    if (t < 1 || t > p1.tensor.dim[i])
-      stop("index out of range")
-    k = k * p1.tensor.dim[i] + t - 1
+  let nelem = 1;
 
-  if (ndim == m)
-    moveTos tos - n
-    push(p1.tensor.elem[k])
-    restore()
-    return
+  for (let i = m; i < ndim; i++) {
+    nelem *= p1.tensor.dim[i];
+  }
 
-  for i in [m...ndim]
-    k = k * p1.tensor.dim[i] + 0
+  const p2: U = alloc_tensor(nelem);
 
-  nelem = 1
+  p2.tensor.ndim = ndim - m;
 
-  for i in [m...ndim]
-    nelem *= p1.tensor.dim[i]
+  for (let i = m; i < ndim; i++) {
+    p2.tensor.dim[i - m] = p1.tensor.dim[i];
+  }
 
-  p2 = alloc_tensor(nelem)
+  for (let i = 0; i < nelem; i++) {
+    p2.tensor.elem[i] = p1.tensor.elem[k + i];
+  }
 
-  p2.tensor.ndim = ndim - m
+  check_tensor_dimensions(p1);
+  check_tensor_dimensions(p2);
 
-  for i in [m...ndim]
-    p2.tensor.dim[i - m] = p1.tensor.dim[i]
+  moveTos(defs.tos - n);
+  push(p2);
+}
 
-  for i in [0...nelem]
-    p2.tensor.elem[i] = p1.tensor.elem[k + i]
+//-----------------------------------------------------------------------------
+//
+//  Input:    n    Number of args on stack
+//
+//      tos-n    Right-hand value
+//
+//      tos-n+1    Left-hand value
+//
+//      tos-n+2    First index
+//
+//      .
+//      .
+//      .
+//
+//      tos-1    Last index
+//
+//  Output:    Result on stack
+//
+//-----------------------------------------------------------------------------
+export function set_component(n: number) {
+  if (n < 3) {
+    stop('error in indexed assign');
+  }
 
-  check_tensor_dimensions p1
-  check_tensor_dimensions p2
+  const s = defs.tos - n;
+  const RVALUE = defs.stack[s];
+  let LVALUE = defs.stack[s + 1];
 
-  moveTos tos - n
-  push(p2)
-  restore()
+  if (!istensor(LVALUE)) {
+    stop(
+      'error in indexed assign: assigning to something that is not a tensor'
+    );
+  }
 
-#-----------------------------------------------------------------------------
-#
-#  Input:    n    Number of args on stack
-#
-#      tos-n    Right-hand value
-#
-#      tos-n+1    Left-hand value
-#
-#      tos-n+2    First index
-#
-#      .
-#      .
-#      .
-#
-#      tos-1    Last index
-#
-#  Output:    Result on stack
-#
-#-----------------------------------------------------------------------------
+  const { ndim } = LVALUE.tensor;
 
-#define LVALUE p1
-#define RVALUE p2
-#define TMP p3
+  const m = n - 2;
 
-set_component = (n) ->
-  i = 0
-  k = 0
-  m = 0
-  ndim = 0
-  t = 0
+  if (m > ndim) {
+    stop('error in indexed assign');
+  }
 
-  save()
+  let k = 0;
+  for (let i = 0; i < m; i++) {
+    push(defs.stack[s + i + 2]);
+    const t = pop_integer();
+    if (t < 1 || t > LVALUE.tensor.dim[i]) {
+      stop('error in indexed assign\n');
+    }
+    k = k * LVALUE.tensor.dim[i] + t - 1;
+  }
 
-  if (n < 3)
-    stop("error in indexed assign")
+  for (let i = m; i < ndim; i++) {
+    k = k * LVALUE.tensor.dim[i] + 0;
+  }
 
-  s = tos - n
+  // copy
+  const TMP = alloc_tensor(LVALUE.tensor.nelem);
 
-  p2 = stack[s]; # p2 is RVALUE
+  TMP.tensor.ndim = LVALUE.tensor.ndim;
 
-  p1 = stack[s+1]; # p1 is LVALUE
+  for (let i = 0; i < LVALUE.tensor.ndim; i++) {
+    TMP.tensor.dim[i] = LVALUE.tensor.dim[i];
+  }
 
-  if (!istensor(p1)) # p1 is LVALUE
-    stop("error in indexed assign: assigning to something that is not a tensor")
+  for (let i = 0; i < LVALUE.tensor.nelem; i++) {
+    TMP.tensor.elem[i] = LVALUE.tensor.elem[i];
+  }
 
-  ndim = p1.tensor.ndim;  # p1 is LVALUE
+  check_tensor_dimensions(LVALUE);
+  check_tensor_dimensions(TMP);
 
-  m = n - 2
+  LVALUE = TMP;
 
-  if (m > ndim)
-    stop("error in indexed assign")
+  if (ndim === m) {
+    if (istensor(RVALUE)) {
+      stop('error in indexed assign');
+    }
+    LVALUE.tensor.elem[k] = RVALUE;
 
-  k = 0
+    check_tensor_dimensions(LVALUE);
 
-  for i in [0...m]
-    push(stack[ s + i + 2])
-    t = pop_integer()
-    if (t < 1 || t > p1.tensor.dim[i]) # p1 is LVALUE
-      stop("error in indexed assign\n")
-    k = k * p1.tensor.dim[i] + t - 1
+    moveTos(defs.tos - n);
+    push(LVALUE);
+    return;
+  }
 
-  for i in [m...ndim]
-    k = k * p1.tensor.dim[i] + 0
+  // see if the rvalue matches
+  if (!istensor(RVALUE)) {
+    stop('error in indexed assign');
+  }
 
-  # copy
+  if (ndim - m !== RVALUE.tensor.ndim) {
+    stop('error in indexed assign');
+  }
 
-  p3 = alloc_tensor(p1.tensor.nelem); # p1 is LVALUE # p3 is TMP
+  for (let i = 0; i < RVALUE.tensor.ndim; i++) {
+    if (LVALUE.tensor.dim[m + i] !== RVALUE.tensor.dim[i]) {
+      stop('error in indexed assign');
+    }
+  }
 
-  p3.tensor.ndim = p1.tensor.ndim; # p1 is LVALUE # p3 is TMP
+  // copy rvalue
+  for (let i = 0; i < RVALUE.tensor.nelem; i++) {
+    LVALUE.tensor.elem[k + i] = RVALUE.tensor.elem[i];
+  }
 
-  for i in [0...p1.tensor.ndim]
-    p3.tensor.dim[i] = p1.tensor.dim[i]; # p1 is LVALUE # p3 is TMP
+  check_tensor_dimensions(LVALUE);
+  check_tensor_dimensions(RVALUE);
 
-  for i in [0...p1.tensor.nelem]
-    p3.tensor.elem[i] = p1.tensor.elem[i]; # p1 is LVALUE # p3 is TMP
+  moveTos(defs.tos - n);
 
-  check_tensor_dimensions p1
-  check_tensor_dimensions p3
-
-  p1 = p3; # p1 is LVALUE # p3 is TMP
-
-  if (ndim == m)
-    if (istensor(p2)) # p2 is RVALUE
-      stop("error in indexed assign")
-    p1.tensor.elem[k] = p2; # p1 is LVALUE # p2 is RVALUE
-
-    check_tensor_dimensions p1
-
-    moveTos tos - n
-    push(p1); # p1 is LVALUE
-    restore()
-    return
-
-
-  # see if the rvalue matches
-
-  if (!istensor(p2)) # p2 is RVALUE
-    stop("error in indexed assign")
-
-  if (ndim - m != p2.tensor.ndim) # p2 is RVALUE
-    stop("error in indexed assign")
-
-  for i in [0...p2.tensor.ndim] # p2 is RVALUE
-    if (p1.tensor.dim[m + i] != p2.tensor.dim[i]) # p1 is LVALUE # p2 is RVALUE
-      stop("error in indexed assign")
-
-  # copy rvalue
-
-  for i in [0...p2.tensor.nelem] # p2 is RVALUE
-    p1.tensor.elem[k + i] = p2.tensor.elem[i]; # p1 is LVALUE # p2 is RVALUE
-
-  check_tensor_dimensions p1
-  check_tensor_dimensions p2
-
-  moveTos tos - n
-
-  push(p1); # p1 is LVALUE
-
-  restore()
-
+  push(LVALUE);
+}

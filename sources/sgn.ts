@@ -1,85 +1,103 @@
-#-----------------------------------------------------------------------------
-#
-#  Author : philippe.billet@noos.fr
-#
-#  sgn sign function
-#
-#
-#-----------------------------------------------------------------------------
+import {
+  cadr,
+  isdouble,
+  isrational,
+  MSIGN,
+  MZERO,
+  SGN,
+  U,
+} from '../runtime/defs';
+import { pop, push } from '../runtime/stack';
+import { push_symbol } from '../runtime/symbol';
+import { absval } from './abs';
+import { push_integer } from './bignum';
+import { Eval } from './eval';
+import { iscomplexnumber, isnegativeterm } from './is';
+import { list } from './list';
+import { mmul } from './mmul';
+import { multiply, negate } from './multiply';
+import { power } from './power';
+//-----------------------------------------------------------------------------
+//
+//  Author : philippe.billet@noos.fr
+//
+//  sgn sign function
+//
+//
+//-----------------------------------------------------------------------------
+export function Eval_sgn(p1: U) {
+  push(cadr(p1));
+  Eval();
+  sgn();
+}
 
+export function sgn() {
+  yysgn();
+}
 
+function yysgn() {
+  const X = pop();
 
-Eval_sgn = ->
-  push(cadr(p1))
-  Eval()
-  sgn()
+  if (isdouble(X)) {
+    if (X.d > 0) {
+      push_integer(1);
+      return;
+    } else {
+      if (X.d === 0) {
+        push_integer(1);
+        return;
+      } else {
+        push_integer(-1);
+        return;
+      }
+    }
+  }
 
-sgn = ->
-  save()
-  yysgn()
-  restore()
+  if (isrational(X)) {
+    if (MSIGN(mmul(X.q.a, X.q.b)) === -1) {
+      push_integer(-1);
+      return;
+    } else {
+      if (MZERO(mmul(X.q.a, X.q.b))) {
+        push_integer(0);
+        return;
+      } else {
+        push_integer(1);
+        return;
+      }
+    }
+  }
 
-#define X p1
+  if (iscomplexnumber(X)) {
+    push_integer(-1);
+    push(X);
+    absval();
+    power();
+    push(X);
+    multiply();
+    return;
+  }
 
-yysgn = ->
-  
-  p1 = pop()
+  if (isnegativeterm(X)) {
+    push_symbol(SGN);
+    push(X);
+    negate();
+    list(2);
+    push_integer(-1);
+    multiply();
+    return;
+  }
 
-  
-  if (isdouble(p1))
-    if (p1.d > 0) 
-      push_integer(1)
-      return
-    else 
-      if (p1.d == 0) 
-        push_integer(1)
-        return
-      else
-        push_integer(-1)
-        return
-
-  if (isrational(p1))
-    if (MSIGN(mmul(p1.q.a,p1.q.b)) == -1) 
-      push_integer(-1)
-      return
-    else 
-      if (MZERO(mmul(p1.q.a,p1.q.b))) 
-        push_integer(0)
-        return
-      else
-        push_integer(1)
-        return
-
-  if (iscomplexnumber(p1))
-    push_integer(-1)
-    push(p1)
-    absval()
-    power()
-    push(p1)
-    multiply()
-    return
-  
-  
-  if (isnegativeterm(p1))
-    push_symbol(SGN)
-    push(p1)
-    negate()
-    list(2)
-    push_integer(-1)
-    multiply()
-    return
-  
-  ###
+  /*
   push_integer(2)
-  push(p1)
+  push(X)
   heaviside()
   multiply()
   push_integer(-1)
   add()
-  ###
-  
-  push_symbol(SGN)
-  push(p1)
-  list(2)
+  */
 
-
+  push_symbol(SGN);
+  push(X);
+  list(2);
+}

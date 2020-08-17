@@ -1,11 +1,3 @@
-test_sinh = ->
-  run_test [
-    "sinh(x)",
-    "sinh(x)",
+import { run_test } from '../test-harness';
 
-    "sinh(0)",
-    "0",
-
-    "sinh(arcsinh(x))",
-    "x",
-  ]
+run_test(['sinh(x)', 'sinh(x)', 'sinh(0)', '0', 'sinh(arcsinh(x))', 'x']);

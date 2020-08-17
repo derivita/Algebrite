@@ -1,11 +1,3 @@
-test_cosh = ->
-  run_test [
-    "cosh(x)",
-    "cosh(x)",
+import { run_test } from '../test-harness';
 
-    "cosh(0)",
-    "1",
-
-    "cosh(arccosh(x))",
-    "x",
-  ]
+run_test(['cosh(x)', 'cosh(x)', 'cosh(0)', '1', 'cosh(arccosh(x))', 'x']);

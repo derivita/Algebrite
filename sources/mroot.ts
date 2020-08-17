@@ -1,63 +1,71 @@
-#-----------------------------------------------------------------------------
-#
-#  Bignum root
-#
-#  Returns null pointer if not perfect root.
-#
-#  The sign of the radicand is ignored.
-#
-#-----------------------------------------------------------------------------
+import bigInt from 'big-integer';
+import { mcmp } from '../runtime/mcmp';
+import { stop } from '../runtime/run';
+import { mint } from './bignum';
+import { mpow } from './mpow';
+//-----------------------------------------------------------------------------
+//
+//  Bignum root
+//
+//  Returns null pointer if not perfect root.
+//
+//  The sign of the radicand is ignored.
+//
+//-----------------------------------------------------------------------------
+export function mroot(n: bigInt.BigInteger, index: number) {
+  n = n.abs();
 
+  if (index === 0) {
+    stop('root index is zero');
+  }
 
-mroot = (n, index) ->
-  # this doesn't quite work
-  #return n.pow(1/index +  0.0000000000000001)
+  // count number of bits
+  let k = 0;
+  while (n.shiftRight(k).toJSNumber() > 0) {
+    k++;
+  }
 
-  # sign of radicand ignored
-  n = n.abs()
+  if (k === 0) {
+    return mint(0);
+  }
 
-  i = 0
-  j = 0
-  k = 0
+  // initial guess
+  k = Math.floor((k - 1) / index);
 
-  if (index == 0)
-    stop("root index is zero")
+  const j = Math.floor(k / 32 + 1);
+  let x = bigInt(j);
 
-  # count number of bits
-  k = 0
-  while n.shiftRight(k) > 0
-    k++
-  
-  if (k == 0)
-    return mint(0)
+  for (let i = 0; i < j; i++) {
+    // zero-out the ith bit
+    x = x.and(
+      bigInt(1)
+        .shiftLeft(i)
+        .not()
+    );
+  }
 
-  # initial guess
+  while (k >= 0) {
+    // set the kth bit
+    x = x.or(bigInt(1).shiftLeft(k));
 
-  k = Math.floor((k - 1) / index)
+    const y = mpow(x, index);
+    switch (mcmp(y, n)) {
+      case 0:
+        return x;
+      case 1:
+        //mp_clr_bit(x, k)
+        // clear the kth bit
+        x = x.and(
+          bigInt(1)
+            .shiftLeft(k)
+            .not()
+        );
+        break;
+    }
+    k--;
+  }
 
-  j = Math.floor(k / 32 + 1)
-  x = bigInt(j)
+  return 0;
+}
 
-  for i in [0...j]
-    # zero-out the ith bit
-    x = x.and(bigInt(1).shiftLeft(i).not())
-
-  while (k >= 0)
-    # set the kth bit
-    x = x.or(bigInt(1).shiftLeft(k))
-
-    y = mpow(x, index)
-    switch (mcmp(y, n))
-      when 0
-        return x
-      when 1
-        #mp_clr_bit(x, k)
-        # clear the kth bit
-        x = x.and(bigInt(1).shiftLeft(k).not())
-    k--
-
-  return 0
-
-
-#if SELFTEST
-
+//if SELFTEST

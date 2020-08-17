@@ -1,4 +1,23 @@
-###
+import {
+  cadddr,
+  caddr,
+  cadr,
+  issymbol,
+  LAGUERRE,
+  NIL,
+  SECRETX,
+  symbol,
+  U,
+} from '../runtime/defs';
+import { pop, push } from '../runtime/stack';
+import { push_symbol } from '../runtime/symbol';
+import { add, subtract } from './add';
+import { pop_integer, push_integer } from './bignum';
+import { Eval } from './eval';
+import { list } from './list';
+import { divide, multiply } from './multiply';
+import { subst } from './subst';
+/*
  Laguerre function
 
 Example
@@ -22,106 +41,92 @@ The computation uses the following recurrence relation.
 In the "for" loop i = n-1 so the recurrence relation becomes
 
   (i+1)*L(x,n,k) = (2*i+1-x+k)*L(x,n-1,k) - (i+k)*L(x,n-2,k)
-###
+*/
+export function Eval_laguerre(p1: U) {
+  let p2: U;
+  // 1st arg
+  push(cadr(p1));
+  Eval();
 
+  // 2nd arg
+  push(caddr(p1));
+  Eval();
 
+  // 3rd arg
+  push(cadddr(p1));
+  Eval();
 
-Eval_laguerre = ->
-  # 1st arg
+  p2 = pop();
+  if (p2 === symbol(NIL)) {
+    push_integer(0);
+  } else {
+    push(p2);
+  }
 
-  push(cadr(p1))
-  Eval()
+  laguerre();
+}
 
-  # 2nd arg
+function laguerre() {
+  let n = 0;
 
-  push(caddr(p1))
-  Eval()
+  const K = pop();
+  const N = pop();
+  let X = pop();
 
-  # 3rd arg
+  push(N);
+  n = pop_integer();
 
-  push(cadddr(p1))
-  Eval()
+  if (n < 0 || isNaN(n)) {
+    push_symbol(LAGUERRE);
+    push(X);
+    push(N);
+    push(K);
+    list(4);
+    return;
+  }
 
-  p2 = pop()
-  if (p2 == symbol(NIL))
-    push_integer(0)
-  else
-    push(p2)
+  if (issymbol(X)) {
+    laguerre2(n, X, K);
+  } else {
+    const Y = X; // do this when p1 is an expr
+    X = symbol(SECRETX);
+    laguerre2(n, X, K);
+    X = Y;
+    push(symbol(SECRETX));
+    push(X);
+    subst();
+    Eval();
+  }
+}
 
-  laguerre()
+function laguerre2(n: number, p1: U, p3: U) {
+  push_integer(1);
+  push_integer(0);
 
-#define X p1
-#define N p2
-#define K p3
-#define Y p4
-#define Y0 p5
-#define Y1 p6
+  let Y1: U = pop();
 
-laguerre = ->
-  n = 0
-  save()
+  for (let i = 0; i < n; i++) {
+    const Y0 = Y1;
 
-  p3 = pop()
-  p2 = pop()
-  p1 = pop()
+    Y1 = pop();
 
-  push(p2)
-  n = pop_integer()
+    push_integer(2 * i + 1);
+    push(p1);
+    subtract();
+    push(p3);
+    add();
+    push(Y1);
+    multiply();
 
-  if (n < 0 || isNaN(n))
-    push_symbol(LAGUERRE)
-    push(p1)
-    push(p2)
-    push(p3)
-    list(4)
-    restore()
-    return
+    push_integer(i);
+    push(p3);
+    add();
+    push(Y0);
+    multiply();
 
-  if (issymbol(p1))
-    laguerre2(n)
-  else
-    p4 = p1;      # do this when p1 is an expr
-    p1 = symbol(SECRETX)
-    laguerre2(n)
-    p1 = p4
-    push(symbol(SECRETX))
-    push(p1)
-    subst()
-    Eval()
+    subtract();
 
-  restore()
-
-laguerre2 = (n) ->
-  i = 0
-
-  push_integer(1)
-  push_integer(0)
-
-  p6 = pop()
-
-  for i in [0...n]
-
-    p5 = p6
-
-    p6 = pop()
-
-    push_integer(2 * i + 1)
-    push(p1)
-    subtract()
-    push(p3)
-    add()
-    push(p6)
-    multiply()
-
-    push_integer(i)
-    push(p3)
-    add()
-    push(p5)
-    multiply()
-
-    subtract()
-
-    push_integer(i + 1)
-    divide()
-
-
+    push_integer(i + 1);
+    divide();
+  }
+}

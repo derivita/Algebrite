@@ -1,4 +1,34 @@
-### besselj =====================================================================
+import {
+  BESSELJ,
+  caddr,
+  cadr,
+  defs,
+  isdouble,
+  MEQUAL,
+  MSIGN,
+  NUM,
+  PI,
+  symbol,
+  U,
+} from '../runtime/defs';
+import { pop, push } from '../runtime/stack';
+import { push_symbol } from '../runtime/symbol';
+import { subtract } from './add';
+import {
+  pop_integer,
+  push_double,
+  push_integer,
+  push_rational,
+} from './bignum';
+import { cosine } from './cos';
+import { Eval } from './eval';
+import { isnegativeterm, isZeroAtomOrTensor } from './is';
+import { list } from './list';
+import { divide, multiply, negate } from './multiply';
+import { power } from './power';
+import { sine } from './sin';
+import { jn } from '../runtime/otherCFunctions';
+/* besselj =====================================================================
 
 Tags
 ----
@@ -35,159 +65,148 @@ Examples:
 
   besselj(x,-3/2) = -(1/x) besselj(x,-1/2) - besselj(x,1/2)
 
-###
+*/
+export function Eval_besselj(p1: U) {
+  push(cadr(p1));
+  Eval();
+  push(caddr(p1));
+  Eval();
+  besselj();
+}
 
+export function besselj() {
+  yybesselj();
+}
 
+function yybesselj() {
+  const N = pop();
+  const X = pop();
 
-Eval_besselj = ->
-  push(cadr(p1))
-  Eval()
-  push(caddr(p1))
-  Eval()
-  besselj()
+  push(N);
+  const n = pop_integer();
 
-besselj = ->
-  save()
-  yybesselj()
-  restore()
+  // numerical result
+  if (isdouble(X) && !isNaN(n)) {
+    const d = jn(n, X.d);
+    push_double(d);
+    return;
+  }
 
-#define X p1
-#define N p2
-#define SGN p3
+  // bessej(0,0) = 1
+  if (isZeroAtomOrTensor(X) && isZeroAtomOrTensor(N)) {
+    push_integer(1);
+    return;
+  }
 
-yybesselj = ->
-  d = 0.0
-  n = 0
+  // besselj(0,n) = 0
+  if (isZeroAtomOrTensor(X) && !isNaN(n)) {
+    push_integer(0);
+    return;
+  }
 
-  p2 = pop()
-  p1 = pop()
+  // half arguments
+  if (N.k === NUM && MEQUAL(N.q.b, 2)) {
+    // n = 1/2
+    if (MEQUAL(N.q.a, 1)) {
+      if (defs.evaluatingAsFloats) {
+        push_double(2.0 / Math.PI);
+      } else {
+        push_integer(2);
+        push_symbol(PI);
+        divide();
+      }
+      push(X);
+      divide();
+      push_rational(1, 2);
+      power();
+      push(X);
+      sine();
+      multiply();
+      return;
+    }
 
-  push(p2)
-  n = pop_integer()
+    // n = -1/2
+    if (MEQUAL(N.q.a, -1)) {
+      if (defs.evaluatingAsFloats) {
+        push_double(2.0 / Math.PI);
+      } else {
+        push_integer(2);
+        push_symbol(PI);
+        divide();
+      }
+      push(X);
+      divide();
+      push_rational(1, 2);
+      power();
+      push(X);
+      cosine();
+      multiply();
+      return;
+    }
 
-  # numerical result
+    // besselj(x,n) = (2/x) (n-sgn(n)) besselj(x,n-sgn(n)) - besselj(x,n-2*sgn(n))
+    push_integer(MSIGN(N.q.a));
+    const SGN = pop();
 
-  if (isdouble(p1) && !isNaN(n))
-    d = jn(n, p1.d)
-    push_double(d)
-    return
+    push_integer(2);
+    push(X);
+    divide();
+    push(N);
+    push(SGN);
+    subtract();
+    multiply();
+    push(X);
+    push(N);
+    push(SGN);
+    subtract();
+    besselj();
+    multiply();
+    push(X);
+    push(N);
+    push_integer(2);
+    push(SGN);
+    multiply();
+    subtract();
+    besselj();
+    subtract();
+    return;
+  }
 
-  # bessej(0,0) = 1
+  //if 0 # test cases needed
+  if (isnegativeterm(X)) {
+    push(X);
+    negate();
+    push(N);
+    power();
+    push(X);
+    push(N);
+    negate();
+    power();
+    multiply();
+    push_symbol(BESSELJ);
+    push(X);
+    negate();
+    push(N);
+    list(3);
+    multiply();
+    return;
+  }
 
-  if (isZeroAtomOrTensor(p1) && isZeroAtomOrTensor(p2))
-    push_integer(1)
-    return
+  if (isnegativeterm(N)) {
+    push_integer(-1);
+    push(N);
+    power();
+    push_symbol(BESSELJ);
+    push(X);
+    push(N);
+    negate();
+    list(3);
+    multiply();
+    return;
+  }
 
-  # besselj(0,n) = 0
-
-  if (isZeroAtomOrTensor(p1) && !isNaN(n))
-    push_integer(0)
-    return
-
-  # half arguments
-
-  if (p2.k == NUM && MEQUAL(p2.q.b, 2))
-
-    # n = 1/2
-
-    if (MEQUAL(p2.q.a, 1))
-      if evaluatingAsFloats
-        push_double(2.0 / Math.PI)
-      else
-        push_integer(2)
-        push_symbol(PI)
-        divide()
-      push(p1)
-      divide()
-      push_rational(1, 2)
-      power()
-      push(p1)
-      sine()
-      multiply()
-      return
-
-    # n = -1/2
-
-    if (MEQUAL(p2.q.a, -1))
-      if evaluatingAsFloats
-        push_double(2.0 / Math.PI)
-      else
-        push_integer(2)
-        push_symbol(PI)
-        divide()
-      push(p1)
-      divide()
-      push_rational(1, 2)
-      power()
-      push(p1)
-      cosine()
-      multiply()
-      return
-
-    # besselj(x,n) = (2/x) (n-sgn(n)) besselj(x,n-sgn(n)) - besselj(x,n-2*sgn(n))
-
-    push_integer(MSIGN(p2.q.a))
-    p3 = pop()
-
-    push_integer(2)
-    push(p1)
-    divide()
-    push(p2)
-    push(p3)
-    subtract()
-    multiply()
-    push(p1)
-    push(p2)
-    push(p3)
-    subtract()
-    besselj()
-    multiply()
-    push(p1)
-    push(p2)
-    push_integer(2)
-    push(p3)
-    multiply()
-    subtract()
-    besselj()
-    subtract()
-
-    return
-
-  #if 0 # test cases needed
-  if (isnegativeterm(p1))
-    push(p1)
-    negate()
-    push(p2)
-    power()
-    push(p1)
-    push(p2)
-    negate()
-    power()
-    multiply()
-    push_symbol(BESSELJ)
-    push(p1)
-    negate()
-    push(p2)
-    list(3)
-    multiply()
-    return
-
-  if (isnegativeterm(p2))
-    push_integer(-1)
-    push(p2)
-    power()
-    push_symbol(BESSELJ)
-    push(p1)
-    push(p2)
-    negate()
-    list(3)
-    multiply()
-    return
-  #endif
-
-  push(symbol(BESSELJ))
-  push(p1)
-  push(p2)
-  list(3)
-
-
+  push(symbol(BESSELJ));
+  push(X);
+  push(N);
+  list(3);
+}

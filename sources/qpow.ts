@@ -1,236 +1,256 @@
-# Rational power function
+import bigInt from 'big-integer';
+import { defs, Num, POWER, U } from '../runtime/defs';
+import { stop } from '../runtime/run';
+import { pop, push } from '../runtime/stack';
+import { push_symbol } from '../runtime/symbol';
+import { add, subtract } from './add';
+import {
+  bignum_truncate,
+  isSmall,
+  makePositive,
+  makeSignSameAs,
+  mp_denominator,
+  mp_numerator,
+  pop_integer,
+  push_integer,
+} from './bignum';
+import {
+  isinteger,
+  isminusone,
+  isnegativenumber,
+  isoneovertwo,
+  isplusone,
+  isZeroAtomOrTensor,
+} from './is';
+import { list } from './list';
+import { mpow } from './mpow';
+import { mroot } from './mroot';
+import { multiply, negate } from './multiply';
+import { quickfactor } from './quickfactor';
+// Rational power function
+export function qpow() {
+  qpowf();
+}
 
+function qpowf() {
+  //unsigned int a, b, *t, *x, *y
 
+  const EXPO = pop() as Num;
+  const BASE = pop() as Num;
 
-qpow = ->
-  save()
-  qpowf()
-  restore()
+  // if base is 1 or exponent is 0 then return 1
+  if (isplusone(BASE) || isZeroAtomOrTensor(EXPO)) {
+    push_integer(1);
+    return;
+  }
 
-#define BASE p1
-#define EXPO p2
+  // if (-1)^(1/2) -> leave it as is
+  if (isminusone(BASE) && isoneovertwo(EXPO)) {
+    push(defs.imaginaryunit);
+    return;
+  }
 
-qpowf = ->
-  expo = 0
-  #unsigned int a, b, *t, *x, *y
+  // if base is zero then return 0
+  if (isZeroAtomOrTensor(BASE)) {
+    if (isnegativenumber(EXPO)) {
+      stop('divide by zero');
+    }
+    push(defs.zero);
+    return;
+  }
 
-  p2 = pop(); # p2 is EXPO
-  p1 = pop(); # p1 is BASE
+  // if exponent is 1 then return base
+  if (isplusone(EXPO)) {
+    push(BASE);
+    return;
+  }
 
-  # if base is 1 or exponent is 0 then return 1
-  if (isplusone(p1) || isZeroAtomOrTensor(p2))  # p1 is BASE  # p2 is EXPO
-    push_integer(1)
-    return
+  let expo = 0;
+  let x: bigInt.BigInteger | 0;
+  let y: bigInt.BigInteger;
+  // if exponent is integer then power
+  if (isinteger(EXPO)) {
+    push(EXPO);
+    expo = pop_integer();
+    if (isNaN(expo)) {
+      // expo greater than 32 bits
+      push_symbol(POWER);
+      push(BASE);
+      push(EXPO);
+      list(3);
+      return;
+    }
 
-  # if (-1)^(1/2) -> leave it as is
-  if (isminusone(p1) and isoneovertwo(p2))  # p1 is BASE  # p2 is EXPO
-    push(imaginaryunit)
-    return
+    x = mpow(BASE.q.a, Math.abs(expo));
+    y = mpow(BASE.q.b, Math.abs(expo));
+    if (expo < 0) {
+      const t = x;
+      x = y;
+      y = t;
+      x = makeSignSameAs(x, y);
+      y = makePositive(y);
+    }
 
-  # if base is zero then return 0
-  if (isZeroAtomOrTensor(p1))  # p1 is BASE
-    if (isnegativenumber(p2))  # p2 is EXPO
-      stop("divide by zero")
-    push(zero)
-    return
+    push(new Num(x, y));
+    return;
+  }
 
-  # if exponent is 1 then return base
-  if (isplusone(p2))  # p2 is EXPO
-    push(p1);  # p1 is BASE
-    return
+  // from here on out the exponent is NOT an integer
 
-  # if exponent is integer then power
-  if (isinteger(p2))  # p2 is EXPO
-    push(p2);  # p2 is EXPO
-    expo = pop_integer()
-    if isNaN(expo)
-      # expo greater than 32 bits
-      push_symbol(POWER)
-      push(p1);  # p1 is BASE
-      push(p2);  # p2 is EXPO
-      list(3)
-      return
+  // if base is -1 then normalize polar angle
+  if (isminusone(BASE)) {
+    push(EXPO);
+    normalize_angle();
+    return;
+  }
 
-    x = mpow(p1.q.a, Math.abs(expo));  # p1 is BASE
-    y = mpow(p1.q.b, Math.abs(expo)); # p1 is BASE
-    if (expo < 0)
-      t = x
-      x = y
-      y = t
-      x = makeSignSameAs(x,y)
-      y = makePositive(y)
+  // if base is negative then (-N)^M -> N^M * (-1)^M
+  if (isnegativenumber(BASE)) {
+    push(BASE);
+    negate();
+    push(EXPO);
+    qpow();
 
-    p3 = new U()
-    p3.k = NUM
-    p3.q.a = x
-    p3.q.b = y
-    push(p3)
-    return
+    push_integer(-1);
+    push(EXPO);
+    qpow();
 
-  # from here on out the exponent is NOT an integer
+    multiply();
+    return;
+  }
 
-  # if base is -1 then normalize polar angle
-  if (isminusone(p1))  # p1 is BASE
-    push(p2);  # p2 is EXPO
-    normalize_angle()
-    return
+  // if BASE is not an integer then power numerator and denominator
+  if (!isinteger(BASE)) {
+    push(BASE);
+    mp_numerator();
+    push(EXPO);
+    qpow();
+    push(BASE);
+    mp_denominator();
+    push(EXPO);
+    negate();
+    qpow();
+    multiply();
+    return;
+  }
 
-  # if base is negative then (-N)^M -> N^M * (-1)^M
-  if (isnegativenumber(p1))  # p1 is BASE
-    push(p1);  # p1 is BASE
-    negate()
-    push(p2);  # p2 is EXPO
-    qpow()
+  // At this point BASE is a positive integer.
 
-    push_integer(-1)
-    push(p2);  # p2 is EXPO
-    qpow()
+  // If BASE is small then factor it.
+  if (is_small_integer(BASE)) {
+    push(BASE);
+    push(EXPO);
+    quickfactor();
+    return;
+  }
 
-    multiply()
-    return
+  // At this point BASE is a positive integer and EXPO is not an integer.
+  if (!isSmall(EXPO.q.a) || !isSmall(EXPO.q.b)) {
+    push_symbol(POWER);
+    push(BASE);
+    push(EXPO);
+    list(3);
+    return;
+  }
 
-  # if p1 (BASE) is not an integer then power numerator and denominator
-  if (!isinteger(p1))  # p1 is BASE
-    push(p1);  # p1 is BASE
-    mp_numerator()
-    push(p2);  # p2 is EXPO
-    qpow()
-    push(p1);  # p1 is BASE
-    mp_denominator()
-    push(p2);  # p2 is EXPO
-    negate()
-    qpow()
-    multiply()
-    return
+  const { a } = EXPO.q;
+  const { b } = EXPO.q;
 
-  # At this point p1 (BASE) is a positive integer.
+  x = mroot(BASE.q.a, b.toJSNumber());
 
-  # If p1 (BASE) is small then factor it.
-  if (is_small_integer(p1))  # p1 is BASE
-    push(p1);  # p1 is BASE
-    push(p2);  # p2 is EXPO
-    quickfactor()
-    return
+  if (x === 0) {
+    push_symbol(POWER);
+    push(BASE);
+    push(EXPO);
+    list(3);
+    return;
+  }
 
-  # At this point p1 (BASE) is a positive integer and p2 (EXPO) is not an integer.
+  y = mpow(x, a);
 
-  if ( !isSmall(p2.q.a) || !isSmall(p2.q.b) )  # p2 is EXPO
-    push_symbol(POWER)
-    push(p1)  # p1 is BASE
-    push(p2);  # p2 is EXPO
-    list(3)
-    return
+  let p3: U;
+  if (EXPO.q.a.isNegative()) {
+    p3 = new Num(bigInt.one, y);
+  } else {
+    p3 = new Num(y);
+  }
 
-  a = p2.q.a;  # p2 is EXPO
-  b = p2.q.b; # p2 is EXPO
+  push(p3);
+}
 
-  x = mroot(p1.q.a, b);  # p1 is BASE
+//-----------------------------------------------------------------------------
+//
+//  Normalize the angle of unit imaginary, i.e. (-1) ^ N
+//
+//  Input:    N on stack (must be rational, not float)
+//
+//  Output:    Result on stack
+//
+//  Note:
+//
+//  n = q * d + r
+//
+//  Example:
+//            n  d  q  r
+//
+//  (-1)^(8/3)  ->   (-1)^(2/3)  8  3  2  2
+//  (-1)^(7/3)  ->   (-1)^(1/3)  7  3  2  1
+//  (-1)^(5/3)  ->  -(-1)^(2/3)  5  3  1  2
+//  (-1)^(4/3)  ->  -(-1)^(1/3)  4  3  1  1
+//  (-1)^(2/3)  ->   (-1)^(2/3)  2  3  0  2
+//  (-1)^(1/3)  ->   (-1)^(1/3)  1  3  0  1
+//
+//  (-1)^(-1/3)  ->  -(-1)^(2/3)  -1  3  -1  2
+//  (-1)^(-2/3)  ->  -(-1)^(1/3)  -2  3  -1  1
+//  (-1)^(-4/3)  ->   (-1)^(2/3)  -4  3  -2  2
+//  (-1)^(-5/3)  ->   (-1)^(1/3)  -5  3  -2  1
+//  (-1)^(-7/3)  ->  -(-1)^(2/3)  -7  3  -3  2
+//  (-1)^(-8/3)  ->  -(-1)^(1/3)  -8  3  -3  1
+//
+//-----------------------------------------------------------------------------
+function normalize_angle() {
+  let A = pop();
 
-  if (x == 0)
-    push_symbol(POWER)
-    push(p1);  # p1 is BASE
-    push(p2);  # p2 is EXPO
-    list(3)
-    return
+  // integer exponent?
+  if (isinteger(A)) {
+    if (A.q.a.isOdd()) {
+      push_integer(-1); // odd exponent
+    } else {
+      push_integer(1); // even exponent
+    }
+    return;
+  }
 
-  y = mpow(x, a)
+  // floor
+  push(A);
+  bignum_truncate();
+  let Q = pop() as Num;
 
-  #mfree(x)
+  if (isnegativenumber(A)) {
+    push(Q);
+    push_integer(-1);
+    add();
+    Q = pop() as Num;
+  }
 
-  p3 = new U()
+  // remainder (always positive)
+  push(A);
+  push(Q);
+  subtract();
+  let R = pop();
 
-  p3.k = NUM
+  // remainder becomes new angle
+  push_symbol(POWER);
+  push_integer(-1);
+  push(R);
+  list(3);
 
-  if (p2.q.a.isNegative())  # p2 is EXPO
-    p3.q.a = bigInt(1)
-    p3.q.b = y
-  else
-    p3.q.a = y
-    p3.q.b = bigInt(1)
+  // negate if quotient is odd
+  if (Q.q.a.isOdd()) {
+    negate();
+  }
+}
 
-  push(p3)
-
-#-----------------------------------------------------------------------------
-#
-#  Normalize the angle of unit imaginary, i.e. (-1) ^ N
-#
-#  Input:    N on stack (must be rational, not float)
-#
-#  Output:    Result on stack
-#
-#  Note:
-#
-#  n = q * d + r
-#
-#  Example:
-#            n  d  q  r
-#
-#  (-1)^(8/3)  ->   (-1)^(2/3)  8  3  2  2
-#  (-1)^(7/3)  ->   (-1)^(1/3)  7  3  2  1
-#  (-1)^(5/3)  ->  -(-1)^(2/3)  5  3  1  2
-#  (-1)^(4/3)  ->  -(-1)^(1/3)  4  3  1  1
-#  (-1)^(2/3)  ->   (-1)^(2/3)  2  3  0  2
-#  (-1)^(1/3)  ->   (-1)^(1/3)  1  3  0  1
-#
-#  (-1)^(-1/3)  ->  -(-1)^(2/3)  -1  3  -1  2
-#  (-1)^(-2/3)  ->  -(-1)^(1/3)  -2  3  -1  1
-#  (-1)^(-4/3)  ->   (-1)^(2/3)  -4  3  -2  2
-#  (-1)^(-5/3)  ->   (-1)^(1/3)  -5  3  -2  1
-#  (-1)^(-7/3)  ->  -(-1)^(2/3)  -7  3  -3  2
-#  (-1)^(-8/3)  ->  -(-1)^(1/3)  -8  3  -3  1
-#
-#-----------------------------------------------------------------------------
-
-#define A p1
-#define Q p2
-#define R p3
-
-normalize_angle = ->
-  save()
-
-  p1 = pop(); # p1 is A
-
-  # integer exponent?
-
-  if (isinteger(p1)) # p1 is A
-    if (p1.q.a.isOdd()) # p1 is A
-      push_integer(-1); # odd exponent
-    else
-      push_integer(1); # even exponent
-    restore()
-    return
-
-  # floor
-
-  push(p1); # p1 is A
-  bignum_truncate()
-  p2 = pop(); # p2 is Q
-
-  if (isnegativenumber(p1)) # p1 is A
-    push(p2)  # p2 is Q
-    push_integer(-1)
-    add()
-    p2 = pop();  # p2 is Q
-
-  # remainder (always positive)
-
-  push(p1); # p1 is A
-  push(p2);  # p2 is Q
-  subtract()
-  p3 = pop(); # p3 is R
-
-  # remainder becomes new angle
-  push_symbol(POWER)
-  push_integer(-1)
-  push(p3)  # p3 is R
-  list(3)
-
-  # negate if quotient is odd
-
-  if (p2.q.a.isOdd())  # p2 is Q
-    negate()
-
-  restore()
-
-is_small_integer = (p) ->
-  return isSmall(p.q.a)
+function is_small_integer(p: Num): boolean {
+  return isSmall(p.q.a);
+}
