@@ -26,7 +26,7 @@ factorpoly = ->
     restore()
     return
 
-  if (!ispolyexpandedform(p1, p2))
+  if (!ispoly(p1, p2))
     push(p1)
     restore()
     return
@@ -246,7 +246,7 @@ yyfactorpoly = ->
         if !equal(checkingTheDivision, dividend)
 
           #push(dividend)
-          #gcd_sum()
+          #gcd_expr()
           #console.log("gcd top of stack: " + stack[tos-1].toString())
 
 
