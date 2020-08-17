@@ -7,7 +7,7 @@ doubleToReasonableString = (d) ->
 
   # when generating code, print out
   # the standard JS Number printout
-  if codeGen
+  if true
     return "" + d
 
 
